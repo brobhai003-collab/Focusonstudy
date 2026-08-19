@@ -26,6 +26,15 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
+      # debug.keystore file .gitignore mein hai isliye GitHub pe nahi hai.
+      # Isliye build se pehle ek standard debug keystore generate kar rahe hain
+      # taaki signing config ko file mil jaye.
+      - name: Generate debug keystore
+        run: |
+          keytool -genkey -v -keystore debug.keystore -storepass android \
+            -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
+            -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+
       # ./gradlew ke bajaye seedha "gradle" command use kar rahe hain
       - name: Build Debug APK
         run: gradle assembleDebug
