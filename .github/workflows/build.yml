@@ -1,7 +1,5 @@
 name: Build Android APK
 
-# Ye workflow tab chalegi jab bhi "main" branch mein naya code push hoga,
-# ya manually "Run workflow" button se bhi chala sakte ho GitHub Actions tab se.
 on:
   push:
     branches: [ "main" ]
@@ -12,27 +10,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Repository ka code checkout karo
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Java (JDK 17) setup karo - Android builds ke liye zaroori hai
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # Step 3: Gradle ko executable permission do
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      # Gradle Wrapper (gradlew) project mein missing hai, isliye
+      # ye action system-wide Gradle install karke use karega
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
 
-      # Step 4: Debug APK build karo (testing ke liye, bina signing ke)
+      # ./gradlew ke bajaye seedha "gradle" command use kar rahe hain
       - name: Build Debug APK
-        run: ./gradlew assembleDebug
+        run: gradle assembleDebug
 
-      # Step 5: Built APK ko artifact ke roop mein upload karo
-      # taaki GitHub Actions tab se download kar sako
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
