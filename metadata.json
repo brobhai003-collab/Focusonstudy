@@ -1,0 +1,6 @@
+{
+  "name": "FocusLock",
+  "description": "Smart app blocker, focus timer, short-form content shield, and productivity companion with multiplayer rooms and scheduled lockouts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
