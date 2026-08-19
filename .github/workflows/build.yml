@@ -24,7 +24,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: '8.5'
+          gradle-version: '9.3.1'
 
       # ./gradlew ke bajaye seedha "gradle" command use kar rahe hain
       - name: Build Debug APK
