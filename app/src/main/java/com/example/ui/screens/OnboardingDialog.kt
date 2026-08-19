@@ -130,16 +130,24 @@ fun OnboardingDialog(
                         Spacer(modifier = Modifier.height(14.dp))
                         Button(
                             onClick = {
-                                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                try {
+                                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                                    }
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    val fallbackIntent = Intent(Settings.ACTION_SETTINGS).apply {
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    }
+                                    context.startActivity(fallbackIntent)
                                 }
-                                context.startActivity(intent)
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = if (hasAccessibility) EmeraldSuccess else CyanNeon,
                                 contentColor = Color(0xFF00242B)
                             ),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.testTag("open_accessibility_settings_button")
                         ) {
                             Text(if (hasAccessibility) "✓ Enabled" else "Open Accessibility Settings", fontWeight = FontWeight.Bold)
                         }

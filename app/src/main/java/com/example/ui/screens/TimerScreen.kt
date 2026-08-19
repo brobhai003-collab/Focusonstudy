@@ -97,6 +97,7 @@ fun TimerScreen(
     val blockedApps by viewModel.blockedAppsList.collectAsStateWithLifecycle()
 
     var showAmbientDialog by remember { mutableStateOf(false) }
+    var showGiveUpConfirmDialog by remember { mutableStateOf(false) }
 
     val blockedCount = blockedApps.count { it.isBlocked }
 
@@ -371,50 +372,98 @@ fun TimerScreen(
                     Text("START FOCUS SESSION", fontWeight = FontWeight.Black, fontSize = 16.sp, letterSpacing = 1.sp)
                 }
             } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Pause / Resume
-                    Button(
-                        onClick = {
-                            if (isPaused) viewModel.resumeFocusSession()
-                            else viewModel.pauseFocusSession()
-                        },
+                if (isStrictMode) {
+                    // Strict Mode Enforced Banner & Locked Controls
+                    Card(
                         modifier = Modifier
-                            .weight(1f)
-                            .height(54.dp)
-                            .testTag("pause_resume_button"),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = VioletNeon,
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Icon(
-                            if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
-                            contentDescription = null
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (isPaused) "Resume" else "Pause", fontWeight = FontWeight.Bold)
-                    }
-
-                    // Stop / Finish Button
-                    OutlinedButton(
-                        onClick = { viewModel.stopFocusSession() },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(54.dp)
-                            .testTag("stop_focus_button"),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = CoralStrict
+                            .fillMaxWidth()
+                            .testTag("strict_mode_locked_banner"),
+                        colors = CardDefaults.cardColors(
+                            containerColor = CoralStrict.copy(alpha = 0.12f)
                         ),
                         border = androidx.compose.foundation.BorderStroke(1.5.dp, CoralStrict),
                         shape = RoundedCornerShape(16.dp)
                     ) {
-                        Icon(Icons.Default.Stop, contentDescription = null, tint = CoralStrict)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Give Up", fontWeight = FontWeight.Bold, color = CoralStrict)
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(CircleShape)
+                                    .background(CoralStrict.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Lock,
+                                    contentDescription = "Strict Mode Enforced",
+                                    tint = CoralStrict,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column {
+                                Text(
+                                    text = "Strict Mode Locked",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CoralStrict
+                                )
+                                Text(
+                                    text = "Pause & Give Up are locked until timer expires. Stay in the zone!",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Pause / Resume
+                        Button(
+                            onClick = {
+                                if (isPaused) viewModel.resumeFocusSession()
+                                else viewModel.pauseFocusSession()
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(54.dp)
+                                .testTag("pause_resume_button"),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = VioletNeon,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Icon(
+                                if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                                contentDescription = null
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (isPaused) "Resume" else "Pause", fontWeight = FontWeight.Bold)
+                        }
+
+                        // Stop / Give Up Button
+                        OutlinedButton(
+                            onClick = { showGiveUpConfirmDialog = true },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(54.dp)
+                                .testTag("stop_focus_button"),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = CoralStrict
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.5.dp, CoralStrict),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Icon(Icons.Default.Stop, contentDescription = null, tint = CoralStrict)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Give Up", fontWeight = FontWeight.Bold, color = CoralStrict)
+                        }
                     }
                 }
             }
@@ -469,6 +518,61 @@ fun TimerScreen(
             },
             onDismiss = { showAmbientDialog = false },
             onUpgradeToPro = onNavigateToPro
+        )
+    }
+
+    // Give Up Confirmation Dialog
+    if (showGiveUpConfirmDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showGiveUpConfirmDialog = false },
+            icon = {
+                Icon(
+                    Icons.Default.Stop,
+                    contentDescription = null,
+                    tint = CoralStrict,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Give Up Focus Session?",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            },
+            text = {
+                Text(
+                    text = "If you quit early, this session will be marked as abandoned. Your streak and focus minutes will not be credited.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showGiveUpConfirmDialog = false
+                        viewModel.stopFocusSession()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = CoralStrict,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.testTag("confirm_give_up_button")
+                ) {
+                    Text("Yes, Give Up", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showGiveUpConfirmDialog = false },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.testTag("cancel_give_up_button")
+                ) {
+                    Text("Keep Focusing", fontWeight = FontWeight.SemiBold)
+                }
+            }
         )
     }
 }

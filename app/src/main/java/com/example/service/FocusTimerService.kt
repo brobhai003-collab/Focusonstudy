@@ -154,6 +154,7 @@ class FocusTimerService : Service() {
     }
 
     private fun pauseSession() {
+        if (_isStrictMode.value) return // Strict mode ignores pause commands
         _isPaused.value = true
         updateNotification()
     }
@@ -190,6 +191,11 @@ class FocusTimerService : Service() {
     }
 
     private fun stopFocusSession(userCancelled: Boolean) {
+        if (userCancelled && _isStrictMode.value) {
+            // Cannot cancel prematurely during strict mode
+            return
+        }
+
         if (userCancelled && _elapsedSeconds.value > 60) {
             val duration = _elapsedSeconds.value
             val label = _sessionLabel.value

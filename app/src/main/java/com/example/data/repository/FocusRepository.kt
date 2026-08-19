@@ -33,18 +33,53 @@ class FocusRepository(
         val resolveInfos = pm.queryIntentActivities(intent, 0)
         val blockedList = focusDao.getBlockedAppsList().associateBy { it.packageName }
 
-        val apps = resolveInfos.mapNotNull { resolveInfo ->
+        val appMap = mutableMapOf<String, InstalledApp>()
+
+        for (resolveInfo in resolveInfos) {
             val pkg = resolveInfo.activityInfo.packageName
-            if (pkg == context.packageName) return@mapNotNull null // Don't block self
-            val appName = resolveInfo.loadLabel(pm).toString()
-            val isSystem = try {
-                val appInfo = pm.getApplicationInfo(pkg, 0)
-                (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-            } catch (e: Exception) {
-                false
+            if (pkg == context.packageName) continue // Don't block self
+
+            // Exclude internal system ui and background helpers
+            if (pkg == "android" || pkg == "com.android.systemui" || pkg.startsWith("com.android.internal")) {
+                continue
             }
+
+            val appInfo = try {
+                pm.getApplicationInfo(pkg, 0)
+            } catch (e: Exception) {
+                null
+            }
+
+            val isSystem = if (appInfo != null) {
+                (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0 && (appInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0
+            } else false
+
+            // Use canonical Application Label, avoiding sub-component/ads activity names
+            var appName = if (appInfo != null) {
+                pm.getApplicationLabel(appInfo).toString()
+            } else {
+                resolveInfo.loadLabel(pm).toString()
+            }
+
+            // Normalization for known apps
+            when (pkg) {
+                "com.facebook.katana" -> appName = "Facebook"
+                "com.facebook.lite" -> appName = "Facebook Lite"
+                "com.facebook.orca" -> appName = "Messenger"
+                "com.instagram.android" -> appName = "Instagram"
+                "com.google.android.youtube" -> appName = "YouTube"
+                "com.zhiliaoapp.musically", "com.ss.android.ugc.trill" -> appName = "TikTok"
+                "com.snapchat.android" -> appName = "Snapchat"
+                "com.twitter.android" -> appName = "X (Twitter)"
+                "com.reddit.frontpage" -> appName = "Reddit"
+                "com.whatsapp" -> appName = "WhatsApp"
+                "org.telegram.messenger" -> appName = "Telegram"
+                "com.netflix.mediaclient" -> appName = "Netflix"
+                "com.spotify.music" -> appName = "Spotify"
+            }
+
             val blockedEntity = blockedList[pkg]
-            InstalledApp(
+            appMap[pkg] = InstalledApp(
                 packageName = pkg,
                 appName = appName,
                 isSystemApp = isSystem,
@@ -52,7 +87,30 @@ class FocusRepository(
                 isWhitelisted = blockedEntity?.isWhitelisted ?: isKnownEssential(pkg),
                 blockShortsOnly = blockedEntity?.blockShortsOnly ?: false
             )
-        }.distinctBy { it.packageName }.sortedBy { it.appName }
+        }
+
+        // Always include popular social/distraction candidates in the catalogue so users can proactively configure them
+        val popularCandidates = listOf(
+            InstalledApp("com.facebook.katana", "Facebook", false, isBlocked = blockedList["com.facebook.katana"]?.isBlocked ?: true, isWhitelisted = false),
+            InstalledApp("com.instagram.android", "Instagram", false, isBlocked = blockedList["com.instagram.android"]?.isBlocked ?: true, isWhitelisted = false, blockShortsOnly = true),
+            InstalledApp("com.google.android.youtube", "YouTube", false, isBlocked = blockedList["com.google.android.youtube"]?.isBlocked ?: true, isWhitelisted = false, blockShortsOnly = true),
+            InstalledApp("com.zhiliaoapp.musically", "TikTok", false, isBlocked = blockedList["com.zhiliaoapp.musically"]?.isBlocked ?: true, isWhitelisted = false),
+            InstalledApp("com.snapchat.android", "Snapchat", false, isBlocked = blockedList["com.snapchat.android"]?.isBlocked ?: true, isWhitelisted = false),
+            InstalledApp("com.twitter.android", "X (Twitter)", false, isBlocked = blockedList["com.twitter.android"]?.isBlocked ?: true, isWhitelisted = false),
+            InstalledApp("com.reddit.frontpage", "Reddit", false, isBlocked = blockedList["com.reddit.frontpage"]?.isBlocked ?: true, isWhitelisted = false),
+            InstalledApp("com.whatsapp", "WhatsApp", false, isBlocked = blockedList["com.whatsapp"]?.isBlocked ?: false, isWhitelisted = blockedList["com.whatsapp"]?.isWhitelisted ?: true)
+        )
+
+        for (candidate in popularCandidates) {
+            if (!appMap.containsKey(candidate.packageName)) {
+                appMap[candidate.packageName] = candidate
+            }
+        }
+
+        val apps = appMap.values.sortedWith(
+            compareByDescending<InstalledApp> { it.isBlocked }
+                .thenBy { it.appName.lowercase() }
+        )
 
         // If database is empty, seed defaults
         if (blockedList.isEmpty()) {
@@ -62,15 +120,13 @@ class FocusRepository(
                     appName = it.appName,
                     isBlocked = it.isBlocked,
                     isWhitelisted = it.isWhitelisted,
-                    blockShortsOnly = false
+                    blockShortsOnly = it.blockShortsOnly
                 )
             }
             if (defaults.isNotEmpty()) {
                 focusDao.insertBlockedApps(defaults)
             }
-            // Also seed default blocked websites
             seedDefaultWebsites()
-            // Seed default schedule
             seedDefaultSchedule()
         }
 
@@ -81,6 +137,7 @@ class FocusRepository(
         val defaultWebs = listOf(
             BlockedWebsiteEntity(domain = "instagram.com"),
             BlockedWebsiteEntity(domain = "tiktok.com"),
+            BlockedWebsiteEntity(domain = "facebook.com"),
             BlockedWebsiteEntity(domain = "twitter.com"),
             BlockedWebsiteEntity(domain = "x.com"),
             BlockedWebsiteEntity(domain = "reddit.com"),
@@ -105,11 +162,15 @@ class FocusRepository(
 
     private fun isKnownDistraction(pkg: String): Boolean {
         val lower = pkg.lowercase()
-        return lower.contains("instagram") ||
+        return lower == "com.facebook.katana" ||
+                lower == "com.facebook.lite" ||
+                lower == "com.facebook.orca" ||
+                lower.contains("facebook") ||
+                lower.contains("instagram") ||
                 lower.contains("tiktok") ||
+                lower.contains("musically") ||
                 lower.contains("snapchat") ||
                 lower.contains("twitter") ||
-                lower.contains("facebook") ||
                 lower.contains("reddit") ||
                 lower.contains("pinterest") ||
                 lower.contains("netflix") ||
@@ -135,7 +196,7 @@ class FocusRepository(
                 packageName = packageName,
                 appName = appName,
                 isBlocked = blocked,
-                isWhitelisted = if (blocked) false else false
+                isWhitelisted = false
             )
         )
     }
@@ -145,7 +206,7 @@ class FocusRepository(
             BlockedAppEntity(
                 packageName = packageName,
                 appName = appName,
-                isBlocked = if (whitelisted) false else false,
+                isBlocked = false,
                 isWhitelisted = whitelisted
             )
         )

@@ -264,12 +264,16 @@ class FocusAccessibilityService : AccessibilityService() {
 
     private fun isCommonDistraction(pkg: String): Boolean {
         val l = pkg.lowercase()
-        return l.contains("instagram") ||
+        return l == "com.facebook.katana" ||
+                l == "com.facebook.lite" ||
+                l == "com.facebook.orca" ||
+                l.contains("facebook") ||
+                l.contains("instagram") ||
                 l.contains("tiktok") ||
+                l.contains("musically") ||
                 l.contains("snapchat") ||
                 l.contains("reddit") ||
                 l.contains("twitter") ||
-                l.contains("facebook") ||
                 l.contains("pinterest")
     }
 
