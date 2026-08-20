@@ -95,7 +95,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        try {
+            enableEdgeToEdge()
+        } catch (e: Exception) {
+            android.util.Log.w("MainActivity", "enableEdgeToEdge warning: ${e.message}")
+        }
         setContent {
             MyApplicationTheme(darkTheme = true) {
                 FocusLockMainApp(
