@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
 
 class FocusViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val app = application as FocusLockApp
+    private val app = (application as? FocusLockApp) ?: FocusLockApp.instance
     private val focusRepo = app.focusRepository
     private val prefsRepo = app.preferencesRepository
     private val usageRepo = app.usageStatsRepository

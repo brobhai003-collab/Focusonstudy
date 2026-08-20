@@ -16,36 +16,24 @@ import kotlinx.coroutines.launch
 
 class FocusLockApp : Application() {
 
-    lateinit var database: FocusLockDatabase
-        private set
-
-    lateinit var focusRepository: FocusRepository
-        private set
-
-    lateinit var preferencesRepository: PreferencesRepository
-        private set
-
-    lateinit var usageStatsRepository: UsageStatsRepository
-        private set
-
-    lateinit var authRepository: AuthRepository
-        private set
+    val database: FocusLockDatabase by lazy { FocusLockDatabase.getDatabase(this) }
+    val focusRepository: FocusRepository by lazy { FocusRepository(this, database.focusDao()) }
+    val preferencesRepository: PreferencesRepository by lazy { PreferencesRepository(this) }
+    val usageStatsRepository: UsageStatsRepository by lazy { UsageStatsRepository(this) }
+    val authRepository: AuthRepository by lazy { AuthRepository(this) }
 
     override fun onCreate() {
         super.onCreate()
         instance = this
 
         try {
-            database = FocusLockDatabase.getDatabase(this)
-            focusRepository = FocusRepository(this, database.focusDao())
-            preferencesRepository = PreferencesRepository(this)
-            usageStatsRepository = UsageStatsRepository(this)
-            authRepository = AuthRepository(this)
-
+            // Eagerly warmup repositories in background
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     focusRepository.ensureDefaultWebsitesSeeded()
-                } catch (_: Exception) {}
+                } catch (e: Exception) {
+                    android.util.Log.w("FocusLockApp", "Default websites seed skipped: ${e.message}")
+                }
             }
 
             createNotificationChannels()
