@@ -227,15 +227,17 @@ fun AppBlockerScreen(
 
                 // Filter Chips Row
                 item {
-                    Row(
+                    LazyRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        listOf(
-                            "ALL" to "All Apps",
-                            "BLOCKED" to "Blocked (${filteredApps.count { it.isBlocked }})",
-                            "WHITELISTED" to "Allowed (${filteredApps.count { it.isWhitelisted }})"
-                        ).forEach { (key, label) ->
+                        items(
+                            listOf(
+                                "ALL" to "All Apps",
+                                "BLOCKED" to "Blocked (${filteredApps.count { it.isBlocked }})",
+                                "WHITELISTED" to "Allowed (${filteredApps.count { it.isWhitelisted }})"
+                            )
+                        ) { (key, label) ->
                             FilterChip(
                                 selected = selectedFilter == key,
                                 onClick = { selectedFilter = key },
@@ -376,27 +378,40 @@ fun AppBlockerScreen(
                             modifier = Modifier
                                 .padding(12.dp)
                                 .fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Block, contentDescription = null, tint = CoralStrict, modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = site.domain,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.SemiBold
+                            Icon(
+                                Icons.Default.Block,
+                                contentDescription = null,
+                                tint = CoralStrict,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = site.domain,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Switch(
+                                checked = site.isEnabled,
+                                onCheckedChange = { viewModel.toggleWebsite(site.id, it) },
+                                modifier = Modifier.scale(0.85f)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            IconButton(
+                                onClick = { viewModel.deleteWebsite(site.id) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "Delete",
+                                    tint = Color(0xFF94A3B8),
+                                    modifier = Modifier.size(18.dp)
                                 )
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Switch(
-                                    checked = site.isEnabled,
-                                    onCheckedChange = { viewModel.toggleWebsite(site.id, it) },
-                                    modifier = Modifier.scale(0.8f)
-                                )
-                                IconButton(onClick = { viewModel.deleteWebsite(site.id) }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
-                                }
                             }
                         }
                     }

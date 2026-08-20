@@ -37,6 +37,13 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     private val focusRepo = app.focusRepository
     private val prefsRepo = app.preferencesRepository
     private val usageRepo = app.usageStatsRepository
+    private val authRepo = app.authRepository
+
+    // --- Firebase Auth & Profile State ---
+    val currentUser = authRepo.currentUser
+    val userProfile = authRepo.userProfile
+    val authError = authRepo.authError
+    val isSyncing = authRepo.isSyncing
 
     // --- State from Service & Prefs ---
     val isSessionActive: StateFlow<Boolean> = FocusTimerService.isSessionActive
@@ -53,6 +60,24 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     val isStrictMode: StateFlow<Boolean> = prefsRepo.isStrictMode
     val isShortsBlockerEnabled: StateFlow<Boolean> = prefsRepo.isShortsBlockerEnabled
     val isWebBlockerEnabled: StateFlow<Boolean> = prefsRepo.isWebBlockerEnabled
+
+    // Auto Strict Lock after 60 seconds (1 minute) of session start or if Strict Mode is explicitly enabled
+    val isSessionStrictLocked: StateFlow<Boolean> = combine(
+        isSessionActive,
+        isStrictMode,
+        elapsedSeconds
+    ) { active, strict, elapsed ->
+        active && (strict || elapsed >= 60)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    // Grace period remaining countdown (in seconds) before auto strict lock engages
+    val graceSecondsRemaining: StateFlow<Long> = combine(
+        isSessionActive,
+        isStrictMode,
+        elapsedSeconds
+    ) { active, strict, elapsed ->
+        if (active && !strict && elapsed < 60) 60 - elapsed else 0L
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
     val selectedAmbient: StateFlow<AmbientSound> = prefsRepo.selectedAmbient
     val currentStreak: StateFlow<Int> = prefsRepo.currentStreak
     val isOnboardingDone: StateFlow<Boolean> = prefsRepo.isOnboardingDone
@@ -98,15 +123,32 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
         else apps.filter { it.appName.contains(query, ignoreCase = true) || it.packageName.contains(query, ignoreCase = true) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // --- Permissions Reactive State ---
+    private val _hasAccessibility = MutableStateFlow(false)
+    val hasAccessibility: StateFlow<Boolean> = _hasAccessibility.asStateFlow()
+
+    private val _hasUsageStats = MutableStateFlow(false)
+    val hasUsageStats: StateFlow<Boolean> = _hasUsageStats.asStateFlow()
+
+    private val _hasOverlay = MutableStateFlow(false)
+    val hasOverlay: StateFlow<Boolean> = _hasOverlay.asStateFlow()
+
+    val hasAllRequiredPermissions: StateFlow<Boolean> = combine(_hasAccessibility, _hasUsageStats, _hasOverlay) { a, u, o ->
+        a && u && o
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     init {
         loadInstalledApps()
+        refreshPermissions()
     }
 
-    fun loadInstalledApps() {
+    fun loadInstalledApps(forceRefresh: Boolean = false) {
         viewModelScope.launch {
-            _isLoadingApps.value = true
+            if (_installedApps.value.isEmpty()) {
+                _isLoadingApps.value = true
+            }
             try {
-                _installedApps.value = focusRepo.getInstalledApps()
+                _installedApps.value = focusRepo.getInstalledApps(forceRefresh)
             } catch (e: Exception) {
                 // Handled
             } finally {
@@ -124,6 +166,10 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setSelectedMode(mode: FocusMode) {
+        if (mode == FocusMode.POMODORO && !prefsRepo.isProUser.value) {
+            _selectedTimerMode.value = FocusMode.TIMER
+            return
+        }
         _selectedTimerMode.value = mode
     }
 
@@ -133,14 +179,18 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Focus Actions ---
     fun startFocusSession() {
+        val isPro = prefsRepo.isProUser.value
+        val effectiveMode = if (_selectedTimerMode.value == FocusMode.POMODORO && !isPro) FocusMode.TIMER else _selectedTimerMode.value
+        val effectiveStrict = if (isStrictMode.value && !isPro) false else isStrictMode.value
+        val effectiveSound = if ((selectedAmbient.value == AmbientSound.LOFI_BEATS || selectedAmbient.value == AmbientSound.DEEP_SPACE) && !isPro) AmbientSound.NONE else selectedAmbient.value
         val durationSeconds = _selectedDurationMinutes.value * 60L
         FocusTimerService.start(
             context = getApplication(),
-            mode = _selectedTimerMode.value,
+            mode = effectiveMode,
             durationSeconds = durationSeconds,
             label = _customSessionName.value.ifBlank { "Deep Focus" },
-            isStrict = isStrictMode.value,
-            sound = selectedAmbient.value
+            isStrict = effectiveStrict,
+            sound = effectiveSound
         )
     }
 
@@ -164,27 +214,58 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleAppBlock(packageName: String, appName: String, currentlyBlocked: Boolean) {
-        viewModelScope.launch {
-            focusRepo.setAppBlocked(packageName, appName, !currentlyBlocked)
-            loadInstalledApps()
+        val newBlocked = !currentlyBlocked
+        // Instant Optimistic In-Memory State Update (0ms delay)
+        _installedApps.value = _installedApps.value.map { app ->
+            if (app.packageName == packageName) {
+                app.copy(
+                    isBlocked = newBlocked,
+                    isWhitelisted = if (newBlocked) false else app.isWhitelisted
+                )
+            } else app
+        }
+        // Async background Room DB persistence
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            focusRepo.setAppBlocked(packageName, appName, newBlocked)
         }
     }
 
     fun toggleAppWhitelist(packageName: String, appName: String, currentlyWhitelisted: Boolean) {
-        viewModelScope.launch {
-            focusRepo.setAppWhitelisted(packageName, appName, !currentlyWhitelisted)
-            loadInstalledApps()
+        val newWhitelisted = !currentlyWhitelisted
+        // Instant Optimistic In-Memory State Update (0ms delay)
+        _installedApps.value = _installedApps.value.map { app ->
+            if (app.packageName == packageName) {
+                app.copy(
+                    isWhitelisted = newWhitelisted,
+                    isBlocked = if (newWhitelisted) false else app.isBlocked
+                )
+            } else app
+        }
+        // Async background Room DB persistence
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            focusRepo.setAppWhitelisted(packageName, appName, newWhitelisted)
         }
     }
 
     fun toggleAppShortsOnly(packageName: String, appName: String, currentShortsOnly: Boolean) {
-        viewModelScope.launch {
-            focusRepo.setAppShortsBlockOnly(packageName, appName, !currentShortsOnly)
-            loadInstalledApps()
+        val newShorts = !currentShortsOnly
+        // Instant Optimistic In-Memory State Update (0ms delay)
+        _installedApps.value = _installedApps.value.map { app ->
+            if (app.packageName == packageName) {
+                app.copy(blockShortsOnly = newShorts)
+            } else app
+        }
+        // Async background Room DB persistence
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            focusRepo.setAppShortsBlockOnly(packageName, appName, newShorts)
         }
     }
 
     fun toggleStrictMode(enabled: Boolean) {
+        if (enabled && !prefsRepo.isProUser.value) {
+            prefsRepo.setStrictMode(false)
+            return
+        }
         prefsRepo.setStrictMode(enabled)
     }
 
@@ -207,6 +288,11 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     // Schedules
     fun addSchedule(label: String, startHour: Int, startMin: Int, endHour: Int, endMin: Int, days: String) {
         viewModelScope.launch {
+            if (!prefsRepo.isProUser.value) {
+                if (schedules.value.isNotEmpty()) {
+                    return@launch
+                }
+            }
             focusRepo.addSchedule(
                 FocusScheduleEntity(
                     label = label,
@@ -288,6 +374,12 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun refreshPermissions() {
+        _hasAccessibility.value = hasAccessibilityPermission()
+        _hasUsageStats.value = hasUsageStatsPermission()
+        _hasOverlay.value = hasOverlayPermission()
+    }
+
     // Permissions Helper Checks
     fun hasAccessibilityPermission(): Boolean {
         val context = getApplication<Application>()
@@ -313,5 +405,68 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
         val dpm = getApplication<Application>().getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         val adminComponent = ComponentName(getApplication(), FocusDeviceAdminReceiver::class.java)
         return dpm.isAdminActive(adminComponent)
+    }
+
+    // --- Authentication Actions ---
+    fun signInWithEmail(email: String, pass: String, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            val result = authRepo.signInWithEmail(email, pass)
+            result.fold(
+                onSuccess = {
+                    onResult(true, null)
+                },
+                onFailure = { err ->
+                    onResult(false, err.message)
+                }
+            )
+        }
+    }
+
+    fun signUpWithEmail(email: String, pass: String, name: String, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            val result = authRepo.signUpWithEmail(email, pass, name)
+            result.fold(
+                onSuccess = {
+                    syncLocalProfileToCloud()
+                    onResult(true, null)
+                },
+                onFailure = { err ->
+                    onResult(false, err.message)
+                }
+            )
+        }
+    }
+
+    fun signInWithGoogleIdToken(idToken: String, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            val result = authRepo.signInWithGoogleIdToken(idToken)
+            result.fold(
+                onSuccess = {
+                    onResult(true, null)
+                },
+                onFailure = { err ->
+                    onResult(false, err.message)
+                }
+            )
+        }
+    }
+
+    fun signOut() {
+        authRepo.signOut()
+    }
+
+    fun syncLocalProfileToCloud() {
+        viewModelScope.launch {
+            authRepo.syncStats(
+                streak = prefsRepo.currentStreak.value,
+                totalMinutes = 0,
+                sessions = sessionsHistory.value.size,
+                isPro = prefsRepo.isProUser.value
+            )
+        }
+    }
+
+    fun clearAuthError() {
+        authRepo.clearError()
     }
 }

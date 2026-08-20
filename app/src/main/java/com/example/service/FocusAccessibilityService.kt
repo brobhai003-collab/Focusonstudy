@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.os.Build
 import android.os.SystemClock
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.example.FocusLockApp
@@ -13,12 +14,52 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import java.util.Collections
 
 class FocusAccessibilityService : AccessibilityService() {
 
     private val serviceScope = CoroutineScope(Dispatchers.Default + Job())
     private var lastBlockedTime = 0L
     private val debounceMillis = 1500L
+
+    private val corePermanentBlockedSites = listOf(
+        "youtube.com",
+        "m.youtube.com",
+        "youtu.be",
+        "instagram.com",
+        "mojapp.in",
+        "moj.com",
+        "in.moj.app",
+        "tiktok.com",
+        "facebook.com",
+        "twitter.com",
+        "x.com",
+        "reddit.com",
+        "snapchat.com"
+    )
+
+    private val blockedDomainsCache = Collections.synchronizedSet(mutableSetOf<String>())
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        blockedDomainsCache.addAll(corePermanentBlockedSites)
+
+        // Observe Room database updates for any custom-added or toggled websites in real-time
+        serviceScope.launch {
+            try {
+                FocusLockApp.instance.database.focusDao().getAllBlockedWebsites().collect { list ->
+                    val enabled = list.filter { it.isEnabled }.map { it.domain.lowercase().trim() }
+                    synchronized(blockedDomainsCache) {
+                        blockedDomainsCache.clear()
+                        blockedDomainsCache.addAll(corePermanentBlockedSites)
+                        blockedDomainsCache.addAll(enabled)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("FocusAccessibility", "Error collecting blocked websites: ${e.message}")
+            }
+        }
+    }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
@@ -63,10 +104,12 @@ class FocusAccessibilityService : AccessibilityService() {
             }
         }
 
-        // 3. Check Website Blocker in Browser
+        // 3. Check Website Blocker in Browser (Applies when Web Shield is ON or Focus Session is Active)
         val isWebBlockEnabled =
             FocusLockApp.instance.preferencesRepository.isWebBlockerEnabled.value
-        if (isWebBlockEnabled && isBrowserPackage(packageName)) {
+        val isSessionActive = FocusTimerService.isSessionActive.value
+
+        if ((isWebBlockEnabled || isSessionActive) && isBrowserPackage(packageName)) {
             val blockedDomain = detectBlockedWebsite(rootInActiveWindow)
             if (blockedDomain != null) {
                 if (currentTime - lastBlockedTime > debounceMillis) {
@@ -206,27 +249,80 @@ class FocusAccessibilityService : AccessibilityService() {
                 lower.contains("sbrowser") ||
                 lower.contains("opera") ||
                 lower.contains("edge") ||
-                lower.contains("browser")
+                lower.contains("brave") ||
+                lower.contains("duckduckgo") ||
+                lower.contains("browser") ||
+                lower.contains("webview")
     }
 
     private fun detectBlockedWebsite(root: AccessibilityNodeInfo?): String? {
         if (root == null) return null
         try {
-            val urlNodes = root.findAccessibilityNodeInfosByViewId("com.android.chrome:id/url_bar")
-                .ifEmpty { root.findAccessibilityNodeInfosByViewId("org.mozilla.firefox:id/toolbar") }
-                .ifEmpty { root.findAccessibilityNodeInfosByViewId("com.sec.android.app.sbrowser:id/location_bar_edit_text") }
+            val candidateTexts = mutableListOf<String>()
 
-            for (node in urlNodes) {
-                val text = node.text?.toString()?.lowercase() ?: ""
-                val blockedSites = listOf("instagram.com", "tiktok.com", "reddit.com", "twitter.com", "x.com", "facebook.com", "youtube.com/shorts")
-                for (site in blockedSites) {
-                    if (text.contains(site)) return site
+            // 1. Check known browser URL bar view IDs
+            val urlBarIds = listOf(
+                "com.android.chrome:id/url_bar",
+                "com.android.chrome:id/location_bar",
+                "com.android.chrome:id/search_box_text",
+                "org.mozilla.firefox:id/url_bar",
+                "org.mozilla.firefox:id/toolbar",
+                "org.mozilla.firefox:id/mozac_browser_toolbar_url_view",
+                "com.sec.android.app.sbrowser:id/location_bar_edit_text",
+                "com.sec.android.app.sbrowser:id/url_bar",
+                "com.microsoft.emmx:id/url_bar",
+                "com.opera.browser:id/url_field",
+                "com.opera.mini.native:id/url_field",
+                "com.brave.browser:id/url_bar",
+                "com.duckduckgo.mobile.android:id/omnibarTextInput"
+            )
+
+            for (id in urlBarIds) {
+                val nodes = root.findAccessibilityNodeInfosByViewId(id)
+                for (n in nodes) {
+                    n.text?.toString()?.let { candidateTexts.add(it.lowercase()) }
+                    n.contentDescription?.toString()?.let { candidateTexts.add(it.lowercase()) }
+                }
+            }
+
+            // 2. Recursive scan for any address bar or webview node text if needed
+            collectAddressBarTexts(root, candidateTexts, maxDepth = 4)
+
+            // Current enabled domains snapshot (including custom-added + core permanent)
+            val activeDomains: Set<String> = synchronized(blockedDomainsCache) {
+                if (blockedDomainsCache.isEmpty()) corePermanentBlockedSites.toSet() else blockedDomainsCache.toSet()
+            }
+
+            for (rawText in candidateTexts) {
+                val text = rawText.lowercase().trim()
+                if (text.isEmpty()) continue
+
+                for (domain in activeDomains) {
+                    val cleanDomain = domain.lowercase().trim()
+                    if (cleanDomain.isEmpty()) continue
+
+                    val domainKeyword = cleanDomain.removePrefix("www.").removePrefix("m.")
+                    if (text.contains(cleanDomain) || (domainKeyword.length >= 4 && text.contains(domainKeyword))) {
+                        return cleanDomain
+                    }
                 }
             }
         } catch (e: Exception) {
             // Handled
         }
         return null
+    }
+
+    private fun collectAddressBarTexts(node: AccessibilityNodeInfo?, list: MutableList<String>, maxDepth: Int) {
+        if (node == null || maxDepth <= 0) return
+        val cls = node.className?.toString() ?: ""
+        if (cls.contains("EditText", ignoreCase = true) || cls.contains("TextView", ignoreCase = true) || node.isEditable || node.isFocused) {
+            node.text?.toString()?.let { list.add(it.lowercase()) }
+            node.contentDescription?.toString()?.let { list.add(it.lowercase()) }
+        }
+        for (i in 0 until node.childCount) {
+            collectAddressBarTexts(node.getChild(i), list, maxDepth - 1)
+        }
     }
 
     private suspend fun getActiveScheduleMatchingNow(): FocusScheduleEntity? {
@@ -267,6 +363,11 @@ class FocusAccessibilityService : AccessibilityService() {
         return l == "com.facebook.katana" ||
                 l == "com.facebook.lite" ||
                 l == "com.facebook.orca" ||
+                l == "com.instagram.android" ||
+                l == "com.google.android.youtube" ||
+                l == "in.moj.app" ||
+                l == "com.sharechat.moj" ||
+                l == "com.sharechat.android" ||
                 l.contains("facebook") ||
                 l.contains("instagram") ||
                 l.contains("tiktok") ||
@@ -274,7 +375,9 @@ class FocusAccessibilityService : AccessibilityService() {
                 l.contains("snapchat") ||
                 l.contains("reddit") ||
                 l.contains("twitter") ||
-                l.contains("pinterest")
+                l.contains("pinterest") ||
+                l.contains("youtube") ||
+                l.contains("moj")
     }
 
     override fun onInterrupt() {}

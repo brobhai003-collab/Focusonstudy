@@ -86,28 +86,6 @@ data class InstalledApp(
     val blockShortsOnly: Boolean = false
 )
 
-data class FocusRoom(
-    val id: String,
-    val name: String,
-    val hostName: String,
-    val topic: String,
-    val participantCount: Int,
-    val durationMinutes: Int,
-    val isProOnly: Boolean = false,
-    val activeParticipants: List<String> = emptyList()
-)
-
-data class LeaderboardUser(
-    val rank: Int,
-    val username: String,
-    val focusMinutesToday: Int,
-    val focusMinutesWeek: Int,
-    val streakDays: Int,
-    val badgeTitle: String,
-    val avatarEmoji: String,
-    val isCurrentUser: Boolean = false
-)
-
 data class ScreenTimeAppUsage(
     val packageName: String,
     val appName: String,
@@ -125,3 +103,15 @@ enum class MascotState(val emoji: String, val title: String, val quote: String) 
     TASK_RUNNING("🎯", "Task Quest in Progress", "Complete your productive target time to unlock other apps!"),
     VICTORY("🏆", "Session Conquered!", "Incredible discipline! Added focus points to your streak.")
 }
+
+data class UserProfile(
+    val uid: String = "",
+    val email: String = "",
+    val displayName: String = "Focus Warrior",
+    val photoUrl: String? = null,
+    val streak: Int = 0,
+    val totalFocusMinutes: Long = 0,
+    val sessionsCompleted: Int = 0,
+    val isPro: Boolean = false,
+    val lastSyncTimestamp: Long = System.currentTimeMillis()
+)

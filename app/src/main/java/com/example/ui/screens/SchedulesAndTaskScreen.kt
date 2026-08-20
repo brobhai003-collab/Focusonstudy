@@ -417,14 +417,15 @@ fun ScheduleItemCard(
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = schedule.label,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                     Text(
                         text = String.format(
@@ -440,13 +441,18 @@ fun ScheduleItemCard(
                     )
                 }
 
+                Spacer(modifier = Modifier.width(8.dp))
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Switch(
                         checked = schedule.isEnabled,
                         onCheckedChange = { onToggle() },
                         modifier = Modifier.scale(0.85f)
                     )
-                    IconButton(onClick = onDelete) {
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(36.dp)
+                    ) {
                         Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFF64748B))
                     }
                 }

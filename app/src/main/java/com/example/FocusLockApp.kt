@@ -6,9 +6,13 @@ import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import com.example.data.local.FocusLockDatabase
+import com.example.data.repository.AuthRepository
 import com.example.data.repository.FocusRepository
 import com.example.data.repository.PreferencesRepository
 import com.example.data.repository.UsageStatsRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class FocusLockApp : Application() {
 
@@ -24,6 +28,9 @@ class FocusLockApp : Application() {
     lateinit var usageStatsRepository: UsageStatsRepository
         private set
 
+    lateinit var authRepository: AuthRepository
+        private set
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -32,6 +39,11 @@ class FocusLockApp : Application() {
         focusRepository = FocusRepository(this, database.focusDao())
         preferencesRepository = PreferencesRepository(this)
         usageStatsRepository = UsageStatsRepository(this)
+        authRepository = AuthRepository(this)
+
+        CoroutineScope(Dispatchers.IO).launch {
+            focusRepository.ensureDefaultWebsitesSeeded()
+        }
 
         createNotificationChannels()
     }

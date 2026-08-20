@@ -206,7 +206,8 @@ fun BlockScreenContent(
                         Text(
                             text = "“One minute of distraction costs 23 minutes of deep focus. Protect your flow!”",
                             style = MaterialTheme.typography.bodySmall,
-                            color = CyanNeon
+                            color = CyanNeon,
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
@@ -231,7 +232,7 @@ fun BlockScreenContent(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Protected by FocusLock Engine",
+                text = "Protected by Dedication Engine",
                 style = MaterialTheme.typography.labelSmall,
                 color = Color(0xFF64748B)
             )

@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -23,8 +25,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Schedule
@@ -61,8 +64,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.screens.AppBlockerScreen
+import com.example.ui.screens.AuthDialog
 import com.example.ui.screens.InsightsAndSettingsScreen
-import com.example.ui.screens.MultiplayerScreen
 import com.example.ui.screens.OnboardingDialog
 import com.example.ui.screens.PremiumPaywallDialog
 import com.example.ui.screens.SchedulesAndTaskScreen
@@ -77,13 +80,11 @@ import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.VioletNeon
 import com.example.ui.viewmodel.FocusViewModel
 import com.example.ui.viewmodel.InsightsViewModel
-import com.example.ui.viewmodel.MultiplayerViewModel
 
 sealed class NavItem(val title: String, val icon: ImageVector, val tag: String) {
     object Timer : NavItem("Timer", Icons.Default.Timer, "nav_timer")
     object Blocker : NavItem("Shield", Icons.Default.Block, "nav_blocker")
     object Schedules : NavItem("Schedules", Icons.Default.Schedule, "nav_schedules")
-    object Multiplayer : NavItem("Rooms", Icons.Default.Group, "nav_multiplayer")
     object Insights : NavItem("Insights", Icons.Default.Insights, "nav_insights")
 }
 
@@ -91,7 +92,6 @@ class MainActivity : ComponentActivity() {
 
     private val focusViewModel: FocusViewModel by viewModels()
     private val insightsViewModel: InsightsViewModel by viewModels()
-    private val multiplayerViewModel: MultiplayerViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -100,8 +100,7 @@ class MainActivity : ComponentActivity() {
             MyApplicationTheme(darkTheme = true) {
                 FocusLockMainApp(
                     focusViewModel = focusViewModel,
-                    insightsViewModel = insightsViewModel,
-                    multiplayerViewModel = multiplayerViewModel
+                    insightsViewModel = insightsViewModel
                 )
             }
         }
@@ -112,27 +111,28 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun FocusLockMainApp(
     focusViewModel: FocusViewModel,
-    insightsViewModel: InsightsViewModel,
-    multiplayerViewModel: MultiplayerViewModel
+    insightsViewModel: InsightsViewModel
 ) {
     var selectedIndex by remember { mutableIntStateOf(0) }
     var showProDialog by remember { mutableStateOf(false) }
+    var showAuthDialog by remember { mutableStateOf(false) }
 
     val navItems = listOf(
         NavItem.Timer,
         NavItem.Blocker,
         NavItem.Schedules,
-        NavItem.Multiplayer,
         NavItem.Insights
     )
 
+    val currentUser by focusViewModel.currentUser.collectAsStateWithLifecycle()
     val isProUser by focusViewModel.isProUser.collectAsStateWithLifecycle()
     val isSessionActive by focusViewModel.isSessionActive.collectAsStateWithLifecycle()
     val isStrictMode by focusViewModel.isStrictMode.collectAsStateWithLifecycle()
     val currentStreak by focusViewModel.currentStreak.collectAsStateWithLifecycle()
     val isOnboardingDone by focusViewModel.isOnboardingDone.collectAsStateWithLifecycle()
+    val hasAllRequiredPermissions by focusViewModel.hasAllRequiredPermissions.collectAsStateWithLifecycle()
 
-    var showOnboarding by remember { mutableStateOf(!isOnboardingDone) }
+    val showOnboarding = !isOnboardingDone || !hasAllRequiredPermissions
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -154,7 +154,7 @@ fun FocusLockMainApp(
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "FocusLock",
+                                    text = "Dedication",
                                     fontWeight = FontWeight.Black,
                                     fontSize = 19.sp,
                                     color = Color.White
@@ -185,6 +185,37 @@ fun FocusLockMainApp(
                     }
                 },
                 actions = {
+                    // Cloud Account / Sign-In Button
+                    Surface(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { showAuthDialog = true }
+                            .padding(end = 6.dp)
+                            .testTag("top_bar_auth_button"),
+                        color = if (currentUser != null) EmeraldSuccess.copy(alpha = 0.15f) else Color(0xFF1E293B),
+                        border = if (currentUser != null) androidx.compose.foundation.BorderStroke(1.dp, EmeraldSuccess) else null,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (currentUser != null) Icons.Default.CloudDone else Icons.Default.AccountCircle,
+                                contentDescription = "Account",
+                                tint = if (currentUser != null) EmeraldSuccess else CyanNeon,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (currentUser != null) (currentUser?.displayName?.split(" ")?.firstOrNull() ?: "SYNCED") else "LOGIN",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (currentUser != null) EmeraldSuccess else Color.White
+                            )
+                        }
+                    }
+
                     // Pro Badge / Action
                     Surface(
                         modifier = Modifier
@@ -264,7 +295,11 @@ fun FocusLockMainApp(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            Crossfade(targetState = selectedIndex, label = "screen_crossfade") { targetIndex ->
+            Crossfade(
+                targetState = selectedIndex,
+                animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing),
+                label = "screen_crossfade"
+            ) { targetIndex ->
                 when (targetIndex) {
                     0 -> TimerScreen(
                         viewModel = focusViewModel,
@@ -278,12 +313,7 @@ fun FocusLockMainApp(
                         viewModel = focusViewModel,
                         onNavigateToPro = { showProDialog = true }
                     )
-                    3 -> MultiplayerScreen(
-                        viewModel = multiplayerViewModel,
-                        isPro = isProUser,
-                        onNavigateToPro = { showProDialog = true }
-                    )
-                    4 -> InsightsAndSettingsScreen(
+                    3 -> InsightsAndSettingsScreen(
                         viewModel = focusViewModel,
                         insightsViewModel = insightsViewModel,
                         onNavigateToPro = { showProDialog = true }
@@ -304,13 +334,20 @@ fun FocusLockMainApp(
         )
     }
 
-    // First-run Onboarding Permissions Wizard
+    // Cloud Account & Sync Dialog
+    if (showAuthDialog) {
+        AuthDialog(
+            viewModel = focusViewModel,
+            onDismiss = { showAuthDialog = false }
+        )
+    }
+
+    // First-run Onboarding Permissions Wizard (Strict Mandatory Enforce)
     if (showOnboarding) {
         OnboardingDialog(
             viewModel = focusViewModel,
             onComplete = {
                 focusViewModel.setOnboardingDone(true)
-                showOnboarding = false
             }
         )
     }

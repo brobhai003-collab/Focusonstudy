@@ -11,7 +11,7 @@ class FocusDeviceAdminReceiver : DeviceAdminReceiver() {
         super.onEnabled(context, intent)
         Toast.makeText(
             context,
-            "FocusLock Strict Protection Activated! Uninstall shield is armed.",
+            "Dedication Strict Protection Activated! Uninstall shield is armed.",
             Toast.LENGTH_LONG
         ).show()
     }
@@ -20,7 +20,7 @@ class FocusDeviceAdminReceiver : DeviceAdminReceiver() {
         super.onDisabled(context, intent)
         Toast.makeText(
             context,
-            "FocusLock Device Protection Disabled.",
+            "Dedication Device Protection Disabled.",
             Toast.LENGTH_SHORT
         ).show()
     }

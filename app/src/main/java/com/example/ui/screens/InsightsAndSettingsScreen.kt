@@ -26,8 +26,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Accessibility
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Lock
@@ -62,6 +64,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -103,6 +106,10 @@ fun InsightsAndSettingsScreen(
 
     val isProUser by viewModel.isProUser.collectAsStateWithLifecycle()
     val isStrictMode by viewModel.isStrictMode.collectAsStateWithLifecycle()
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+    val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+
+    var showAuthDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -247,34 +254,39 @@ fun InsightsAndSettingsScreen(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                         ) {
                             Row(
-                                modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (appUsage.isDistracting) CoralStrict.copy(alpha = 0.2f) else EmeraldSuccess.copy(alpha = 0.2f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = if (appUsage.isDistracting) "⏳" else "⚡",
-                                            fontSize = 16.sp
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column {
-                                        Text(appUsage.appName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                                        Text(
-                                            if (appUsage.isDistracting) "Distraction App" else "Productive Use",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = if (appUsage.isDistracting) CoralStrict else EmeraldSuccess
-                                        )
-                                    }
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (appUsage.isDistracting) CoralStrict.copy(alpha = 0.2f) else EmeraldSuccess.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (appUsage.isDistracting) "⏳" else "⚡",
+                                        fontSize = 16.sp
+                                    )
                                 }
-
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = appUsage.appName,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = if (appUsage.isDistracting) "Distraction App" else "Productive Use",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (appUsage.isDistracting) CoralStrict else EmeraldSuccess
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "${mins}m",
                                     style = MaterialTheme.typography.titleMedium,
@@ -293,6 +305,66 @@ fun InsightsAndSettingsScreen(
         } else {
             // TAB 2: Strict Mode & Permissions
             LazyColumn(modifier = Modifier.fillMaxSize()) {
+                // Cloud Sync / Account Card
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (currentUser != null) Color(0xFF0D2818) else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(16.dp),
+                        border = if (currentUser != null) androidx.compose.foundation.BorderStroke(1.dp, EmeraldSuccess) else null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showAuthDialog = true }
+                            .testTag("account_sync_card")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (currentUser != null) Icons.Default.CloudDone else Icons.Default.AccountCircle,
+                                contentDescription = null,
+                                tint = if (currentUser != null) EmeraldSuccess else CyanNeon,
+                                modifier = Modifier.size(34.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = if (currentUser != null) (userProfile?.displayName ?: currentUser?.displayName ?: "Cloud Account") else "Sync Account & Streaks",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (currentUser != null) EmeraldSuccess else Color.White
+                                    )
+                                    if (currentUser != null) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(color = EmeraldSuccess, shape = RoundedCornerShape(4.dp)) {
+                                            Text(
+                                                text = "SYNCED",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = Color.Black,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                Text(
+                                    text = if (currentUser != null) 
+                                        "${currentUser?.email} • ${viewModel.currentStreak.value} day streak synced"
+                                    else 
+                                        "Sign in to save your stats, streaks & settings forever across devices",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (currentUser != null) Color(0xFFC7F9CC) else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+
                 // FocusLock Pro Subscription Banner
                 item {
                     Card(
@@ -313,7 +385,7 @@ fun InsightsAndSettingsScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = "FocusLock Pro",
+                                        text = "Dedication Pro",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = AmberWarning
@@ -330,7 +402,7 @@ fun InsightsAndSettingsScreen(
                                     }
                                 }
                                 Text(
-                                    text = if (isProUser) "You have all Pro superpowers unlocked!" else "Unlocks Strict Mode, Pomodoro, Multiplayer Rooms & All Soundscapes",
+                                    text = if (isProUser) "You have all Pro superpowers unlocked!" else "Unlocks Strict Mode, Pomodoro Cycles & All Soundscapes",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Color(0xFFFFECC0)
                                 )
@@ -340,7 +412,7 @@ fun InsightsAndSettingsScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Strict Mode Card
+                    // Strict Mode Card (Uninstall Protection)
                     Card(
                         colors = CardDefaults.cardColors(
                             containerColor = if (isStrictMode) Color(0xFF331422) else MaterialTheme.colorScheme.surfaceVariant
@@ -349,37 +421,58 @@ fun InsightsAndSettingsScreen(
                         border = if (isStrictMode) androidx.compose.foundation.BorderStroke(1.dp, CoralStrict) else null,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Security,
+                                contentDescription = null,
+                                tint = CoralStrict,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(
+                                modifier = Modifier.weight(1f)
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Security, contentDescription = null, tint = CoralStrict, modifier = Modifier.size(28.dp))
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column {
-                                        Text("Strict Mode (Uninstall Protection)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                        Text("Prevents deleting app or split-screen bypass", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                }
-                                Switch(
-                                    checked = isStrictMode,
-                                    onCheckedChange = { enabled ->
-                                        if (!isProUser) onNavigateToPro()
-                                        else viewModel.toggleStrictMode(enabled)
-                                    },
-                                    colors = SwitchDefaults.colors(checkedThumbColor = CoralStrict),
-                                    modifier = Modifier.scale(0.85f)
+                                Text(
+                                    text = "Strict Mode (Uninstall Protection)",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 2,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Prevents deleting app or split-screen bypass",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Switch(
+                                checked = isStrictMode,
+                                onCheckedChange = { enabled ->
+                                    if (!isProUser) onNavigateToPro()
+                                    else viewModel.toggleStrictMode(enabled)
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = CoralStrict,
+                                    uncheckedThumbColor = Color(0xFF94A3B8),
+                                    uncheckedTrackColor = Color(0xFF1E283F)
+                                ),
+                                modifier = Modifier.testTag("strict_mode_uninstall_toggle")
+                            )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
 
                     Text("System Permissions Setup", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("FocusLock requires these Android system permissions to operate effectively:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Dedication requires these Android system permissions to operate effectively:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
@@ -447,7 +540,7 @@ fun InsightsAndSettingsScreen(
                             val compName = ComponentName(context, FocusDeviceAdminReceiver::class.java)
                             val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
                                 putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, compName)
-                                putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "FocusLock uses Device Administrator to prevent unauthorized uninstallation during active strict sessions.")
+                                putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Dedication uses Device Administrator to prevent unauthorized uninstallation during active strict sessions.")
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
                             }
                             context.startActivity(intent)
@@ -460,6 +553,13 @@ fun InsightsAndSettingsScreen(
                 }
             }
         }
+    }
+
+    if (showAuthDialog) {
+        AuthDialog(
+            viewModel = viewModel,
+            onDismiss = { showAuthDialog = false }
+        )
     }
 }
 

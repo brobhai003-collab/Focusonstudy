@@ -153,8 +153,12 @@ class FocusTimerService : Service() {
         }
     }
 
+    private fun isSessionStrictLocked(): Boolean {
+        return _isStrictMode.value || (_isSessionActive.value && _elapsedSeconds.value >= 60)
+    }
+
     private fun pauseSession() {
-        if (_isStrictMode.value) return // Strict mode ignores pause commands
+        if (isSessionStrictLocked()) return // Auto strict-lock after 1 min or manual strict mode ignores pause
         _isPaused.value = true
         updateNotification()
     }
@@ -182,6 +186,20 @@ class FocusTimerService : Service() {
                     )
                 )
                 FocusLockApp.instance.preferencesRepository.recordSessionSuccess()
+                
+                // Sync progress with Firebase Cloud Profile
+                try {
+                    val currentStreak = FocusLockApp.instance.preferencesRepository.currentStreak.value
+                    val isPro = FocusLockApp.instance.preferencesRepository.isProUser.value
+                    FocusLockApp.instance.authRepository.syncStats(
+                        streak = currentStreak,
+                        totalMinutes = (duration / 60).coerceAtLeast(1),
+                        sessions = 1,
+                        isPro = isPro
+                    )
+                } catch (e: Exception) {
+                    // Non-blocking sync
+                }
             } catch (e: Exception) {
                 // Handled gracefully
             }
@@ -191,8 +209,8 @@ class FocusTimerService : Service() {
     }
 
     private fun stopFocusSession(userCancelled: Boolean) {
-        if (userCancelled && _isStrictMode.value) {
-            // Cannot cancel prematurely during strict mode
+        if (userCancelled && isSessionStrictLocked()) {
+            // Cannot cancel prematurely during strict mode or after 1-minute grace period
             return
         }
 

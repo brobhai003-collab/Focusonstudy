@@ -9,15 +9,15 @@ import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
     primary = CyanNeon,
-    onPrimary = Color(0xFF002026),
-    primaryContainer = Color(0xFF004D5A),
-    onPrimaryContainer = Color(0xFF80F2FF),
+    onPrimary = Color(0xFF002220),
+    primaryContainer = Color(0xFF004D44),
+    onPrimaryContainer = Color(0xFF80FFE8),
     secondary = VioletNeon,
-    onSecondary = Color(0xFF1E004B),
-    secondaryContainer = Color(0xFF421D7A),
-    onSecondaryContainer = Color(0xFFD6BAFF),
+    onSecondary = Color(0xFF1E084B),
+    secondaryContainer = Color(0xFF3F1982),
+    onSecondaryContainer = Color(0xFFE2D1FF),
     tertiary = AmberWarning,
-    onTertiary = Color(0xFF3E2400),
+    onTertiary = Color(0xFF381F00),
     error = CoralStrict,
     onError = Color.White,
     background = DarkBackground,
@@ -26,15 +26,15 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = TextPrimaryDark,
     surfaceVariant = DarkSurfaceVariant,
     onSurfaceVariant = TextSecondaryDark,
-    outline = Color(0xFF334155),
-    outlineVariant = Color(0xFF1E293B)
+    outline = DarkBorder,
+    outlineVariant = Color(0xFF1E283F)
 )
 
 private val LightColorScheme = lightColorScheme(
     primary = CyanDark,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFC7F4FF),
-    onPrimaryContainer = Color(0xFF001F25),
+    primaryContainer = Color(0xFFD4F8F2),
+    onPrimaryContainer = Color(0xFF00201B),
     secondary = VioletDark,
     onSecondary = Color.White,
     secondaryContainer = Color(0xFFEADBFF),
@@ -49,14 +49,14 @@ private val LightColorScheme = lightColorScheme(
     onSurface = TextPrimaryLight,
     surfaceVariant = LightSurfaceVariant,
     onSurfaceVariant = TextSecondaryLight,
-    outline = Color(0xFFCBD5E1),
+    outline = LightBorder,
     outlineVariant = Color(0xFFE2E8F0)
 )
 
 @Composable
 fun MyApplicationTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false, // Use our handcrafted immersive focus theme
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme

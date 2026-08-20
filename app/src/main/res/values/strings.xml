@@ -1,8 +1,8 @@
 <resources>
-    <string name="app_name">FocusLock</string>
-    <string name="accessibility_service_description">FocusLock uses Accessibility Service to detect when distracting apps, short video feeds (Reels, Shorts), or blocked websites are opened during active focus sessions and schedules to help you maintain concentration.</string>
-    <string name="device_admin_description">FocusLock Device Administrator protects active focus sessions by preventing unauthorized uninstallation or bypassing while Strict Mode is active.</string>
-    <string name="focus_notification_channel">FocusLock Active Sessions</string>
+    <string name="app_name">Dedication</string>
+    <string name="accessibility_service_description">Dedication uses Accessibility Service to detect when distracting apps, short video feeds (Reels, Shorts), or blocked websites are opened during active focus sessions and schedules to help you maintain concentration.</string>
+    <string name="device_admin_description">Dedication Device Administrator protects active focus sessions by preventing unauthorized uninstallation or bypassing while Strict Mode is active.</string>
+    <string name="focus_notification_channel">Dedication Active Sessions</string>
     <string name="focus_notification_desc">Displays active focus timer and session status</string>
     <string name="ambient_notification_channel">Focus Audio</string>
     <string name="ambient_notification_desc">Ambient focus audio player controls</string>

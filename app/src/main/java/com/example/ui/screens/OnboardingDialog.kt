@@ -1,10 +1,13 @@
 package com.example.ui.screens
 
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,10 +24,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -34,10 +39,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,10 +52,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.ui.theme.AmberWarning
+import com.example.ui.theme.CoralStrict
 import com.example.ui.theme.CyanNeon
 import com.example.ui.theme.EmeraldSuccess
 import com.example.ui.theme.VioletNeon
 import com.example.ui.viewmodel.FocusViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 fun OnboardingDialog(
@@ -59,210 +71,382 @@ fun OnboardingDialog(
     onComplete: () -> Unit
 ) {
     val context = LocalContext.current
-    var step by remember { mutableIntStateOf(1) }
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    val hasAccessibility = viewModel.hasAccessibilityPermission()
-    val hasUsage = viewModel.hasUsageStatsPermission()
-    val hasOverlay = viewModel.hasOverlayPermission()
+    val hasAccessibility by viewModel.hasAccessibility.collectAsStateWithLifecycle()
+    val hasUsage by viewModel.hasUsageStats.collectAsStateWithLifecycle()
+    val hasOverlay by viewModel.hasOverlay.collectAsStateWithLifecycle()
 
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = { /* Force complete or step */ },
+    // OnResume lifecycle listener to immediately and smoothly detect permissions when user returns from Settings
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshPermissions()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    val currentStep = when {
+        !hasAccessibility -> 1
+        !hasUsage -> 2
+        !hasOverlay -> 3
+        else -> 4 // All permissions granted!
+    }
+
+    AlertDialog(
+        onDismissRequest = { /* Strictly non-dismissable until all mandatory permissions are granted */ },
+        properties = DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false
+        ),
         title = null,
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                when (step) {
-                    1 -> {
-                        // Step 1: Welcome
-                        Box(
-                            modifier = Modifier
-                                .size(70.dp)
-                                .clip(CircleShape)
-                                .background(CyanNeon.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("🛡️", fontSize = 36.sp)
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "Welcome to FocusLock",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Black,
-                            color = Color.White
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "The ultimate phone addiction shield designed to help you reclaim your deep focus and crush dopamine loops.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                    2 -> {
-                        // Step 2: Accessibility Permission
-                        Box(
-                            modifier = Modifier
-                                .size(70.dp)
-                                .clip(CircleShape)
-                                .background(VioletNeon.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Accessibility, contentDescription = null, tint = VioletNeon, modifier = Modifier.size(36.dp))
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "Enable Focus Engine",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "FocusLock requires Accessibility Service to detect when you open distracting apps or scroll doom feeds (YouTube Shorts & Instagram Reels) to show the Focus Shield.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Button(
-                            onClick = {
-                                try {
-                                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                // Step Progress Indicator
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    StepBadge(stepNumber = 1, isActive = currentStep == 1, isCompleted = hasAccessibility, label = "Accessibility")
+                    StepDivider(isCompleted = hasAccessibility)
+                    StepBadge(stepNumber = 2, isActive = currentStep == 2, isCompleted = hasUsage, label = "Usage")
+                    StepDivider(isCompleted = hasUsage)
+                    StepBadge(stepNumber = 3, isActive = currentStep == 3, isCompleted = hasOverlay, label = "Overlay")
+                }
+
+                AnimatedContent(
+                    targetState = currentStep,
+                    transitionSpec = { fadeIn() togetherWith fadeOut() },
+                    label = "onboarding_step_animation"
+                ) { step ->
+                    when (step) {
+                        1 -> {
+                            // STEP 1: Accessibility Service (Mandatory)
+                            PermissionStepContent(
+                                icon = Icons.Default.Accessibility,
+                                iconColor = VioletNeon,
+                                title = "1. Enable Focus Engine",
+                                subtitle = "MANDATORY STEP 1 OF 3",
+                                description = "Dedication requires Accessibility Service to detect when distracting apps (e.g. Facebook, Instagram, YouTube) or short-form reels are opened.",
+                                actionText = "Open Accessibility Settings",
+                                buttonTestTag = "open_accessibility_settings_button",
+                                onActionClick = {
+                                    try {
+                                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        val fallbackIntent = Intent(Settings.ACTION_SETTINGS).apply {
+                                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                        }
+                                        context.startActivity(fallbackIntent)
                                     }
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    val fallbackIntent = Intent(Settings.ACTION_SETTINGS).apply {
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                }
+                            )
+                        }
+                        2 -> {
+                            // STEP 2: Usage Access (Mandatory)
+                            PermissionStepContent(
+                                icon = Icons.Default.QueryStats,
+                                iconColor = CyanNeon,
+                                title = "2. Grant Usage Access",
+                                subtitle = "MANDATORY STEP 2 OF 3",
+                                description = "Allows Dedication to accurately calculate your daily screen time, productive minutes, and verify task completion quests.",
+                                actionText = "Grant Usage Access",
+                                buttonTestTag = "grant_usage_access_button",
+                                onActionClick = {
+                                    try {
+                                        val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        val fallbackIntent = Intent(Settings.ACTION_SETTINGS).apply {
+                                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                        }
+                                        context.startActivity(fallbackIntent)
                                     }
-                                    context.startActivity(fallbackIntent)
                                 }
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (hasAccessibility) EmeraldSuccess else CyanNeon,
-                                contentColor = Color(0xFF00242B)
-                            ),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.testTag("open_accessibility_settings_button")
-                        ) {
-                            Text(if (hasAccessibility) "✓ Enabled" else "Open Accessibility Settings", fontWeight = FontWeight.Bold)
+                            )
                         }
-                    }
-                    3 -> {
-                        // Step 3: Usage Access
-                        Box(
-                            modifier = Modifier
-                                .size(70.dp)
-                                .clip(CircleShape)
-                                .background(CyanNeon.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.QueryStats, contentDescription = null, tint = CyanNeon, modifier = Modifier.size(36.dp))
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "Usage Stats & Quests",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Allows FocusLock to measure your productive screen time and power the Task-Based Unlock engine.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Button(
-                            onClick = {
-                                val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                }
-                                context.startActivity(intent)
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (hasUsage) EmeraldSuccess else CyanNeon,
-                                contentColor = Color(0xFF00242B)
-                            ),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text(if (hasUsage) "✓ Enabled" else "Grant Usage Access", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                    4 -> {
-                        // Step 4: Display Overlay
-                        Box(
-                            modifier = Modifier
-                                .size(70.dp)
-                                .clip(CircleShape)
-                                .background(VioletNeon.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Layers, contentDescription = null, tint = VioletNeon, modifier = Modifier.size(36.dp))
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "Display Shield Overlay",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Enables instant display of the full-screen Focus Shield above distracting apps during active sessions.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Button(
-                            onClick = {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                    val intent = Intent(
-                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        Uri.parse("package:${context.packageName}")
-                                    ).apply {
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        3 -> {
+                            // STEP 3: Display Overlay (Mandatory)
+                            PermissionStepContent(
+                                icon = Icons.Default.Layers,
+                                iconColor = AmberWarning,
+                                title = "3. Allow Shield Overlay",
+                                subtitle = "FINAL MANDATORY STEP 3 OF 3",
+                                description = "Enables Dedication to display the full-screen Focus Shield over distracting apps during active focus sessions.",
+                                actionText = "Allow Display Overlay",
+                                buttonTestTag = "grant_overlay_permission_button",
+                                onActionClick = {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                        try {
+                                            val intent = Intent(
+                                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                                Uri.parse("package:${context.packageName}")
+                                            ).apply {
+                                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                                            }
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            val fallbackIntent = Intent(Settings.ACTION_SETTINGS).apply {
+                                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                            }
+                                            context.startActivity(fallbackIntent)
+                                        }
                                     }
-                                    context.startActivity(intent)
                                 }
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (hasOverlay) EmeraldSuccess else CyanNeon,
-                                contentColor = Color(0xFF00242B)
-                            ),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text(if (hasOverlay) "✓ Enabled" else "Allow Overlay Permission", fontWeight = FontWeight.Bold)
+                            )
+                        }
+                        else -> {
+                            // ALL PERMISSIONS GRANTED!
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(68.dp)
+                                        .clip(CircleShape)
+                                        .background(EmeraldSuccess.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.CheckCircle,
+                                        contentDescription = "Success",
+                                        tint = EmeraldSuccess,
+                                        modifier = Modifier.size(44.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Text(
+                                    text = "All Systems Armed!",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "All required permissions are active. Your phone addiction shield is ready to reclaim your focus.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        PermissionStatusItem(text = "Accessibility Focus Engine Active", isGranted = true)
+                                        PermissionStatusItem(text = "Usage & Screen Time Tracker Active", isGranted = true)
+                                        PermissionStatusItem(text = "Focus Shield Overlay Active", isGranted = true)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(20.dp))
+                                Button(
+                                    onClick = onComplete,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = CyanNeon,
+                                        contentColor = Color(0xFF00242B)
+                                    ),
+                                    shape = RoundedCornerShape(14.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(52.dp)
+                                        .testTag("launch_focuslock_button")
+                                ) {
+                                    Text("LAUNCH FOCUSLOCK", fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
+                                }
+                            }
                         }
                     }
                 }
             }
         },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (step < 4) {
-                        step += 1
-                    } else {
-                        onComplete()
+        confirmButton = {}
+    )
+}
+
+@Composable
+private fun PermissionStepContent(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconColor: Color,
+    title: String,
+    subtitle: String,
+    description: String,
+    actionText: String,
+    buttonTestTag: String,
+    onActionClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Box(
+            modifier = Modifier
+                .size(68.dp)
+                .clip(CircleShape)
+                .background(iconColor.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = iconColor,
+                modifier = Modifier.size(36.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(14.dp))
+        Surface(
+            color = iconColor.copy(alpha = 0.15f),
+            shape = RoundedCornerShape(6.dp)
+        ) {
+            Text(
+                text = subtitle,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Black,
+                color = iconColor,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        Button(
+            onClick = onActionClick,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = iconColor,
+                contentColor = if (iconColor == CyanNeon || iconColor == AmberWarning) Color(0xFF00242B) else Color.White
+            ),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+                .testTag(buttonTestTag)
+        ) {
+            Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(actionText, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "App will automatically detect when you return from Settings.",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color(0xFF64748B),
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun StepBadge(
+    stepNumber: Int,
+    isActive: Boolean,
+    isCompleted: Boolean,
+    label: String
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(
+                    when {
+                        isCompleted -> EmeraldSuccess
+                        isActive -> CyanNeon
+                        else -> Color(0xFF334155)
                     }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = CyanNeon, contentColor = Color(0xFF00242B)),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("onboarding_next_button")
-            ) {
-                Text(if (step < 4) "Continue" else "Get Started", fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.width(6.dp))
-                Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isCompleted) {
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = "Done",
+                    tint = Color(0xFF00242B),
+                    modifier = Modifier.size(16.dp)
+                )
+            } else {
+                Text(
+                    text = "$stepNumber",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    color = if (isActive) Color(0xFF00242B) else Color.White
+                )
             }
         }
+        Spacer(modifier = Modifier.height(3.dp))
+        Text(
+            text = label,
+            fontSize = 9.sp,
+            fontWeight = if (isActive || isCompleted) FontWeight.Bold else FontWeight.Normal,
+            color = if (isCompleted) EmeraldSuccess else if (isActive) CyanNeon else Color(0xFF64748B)
+        )
+    }
+}
+
+@Composable
+private fun StepDivider(isCompleted: Boolean) {
+    Box(
+        modifier = Modifier
+            .width(28.dp)
+            .height(2.dp)
+            .padding(horizontal = 4.dp)
+            .background(if (isCompleted) EmeraldSuccess else Color(0xFF334155))
     )
+}
+
+@Composable
+private fun PermissionStatusItem(
+    text: String,
+    isGranted: Boolean
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Icon(
+            Icons.Default.CheckCircle,
+            contentDescription = null,
+            tint = if (isGranted) EmeraldSuccess else CoralStrict,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (isGranted) Color(0xFFE2E8F0) else Color(0xFF94A3B8),
+            fontWeight = FontWeight.Medium
+        )
+    }
 }
