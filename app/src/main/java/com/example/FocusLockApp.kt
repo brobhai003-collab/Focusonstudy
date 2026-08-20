@@ -26,6 +26,12 @@ class FocusLockApp : Application() {
         super.onCreate()
         instance = this
 
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            android.util.Log.e("FocusLockApp", "Uncaught exception in thread ${thread.name}: ${throwable.message}", throwable)
+            defaultHandler?.uncaughtException(thread, throwable)
+        }
+
         try {
             // Eagerly warmup repositories in background
             CoroutineScope(Dispatchers.IO).launch {
