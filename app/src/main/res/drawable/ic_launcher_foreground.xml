@@ -1,8 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item
-        android:width="66dp"
-        android:height="66dp"
-        android:drawable="@drawable/img_dedication_logo"
-        android:gravity="center" />
-</layer-list>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="0"
+        android:translateY="0">
+        <!-- Outer Glowing Shield -->
+        <path
+            android:fillColor="#1E293B"
+            android:pathData="M54,26 L74,34 C74,56 64,70 54,80 C44,70 34,56 34,34 Z" />
+        <!-- Violet Neon Armor -->
+        <path
+            android:fillColor="#8B5CF6"
+            android:pathData="M54,30 L70,37 C70,54 62,66 54,75 C46,66 38,54 38,37 Z" />
+        <!-- Cyan Core Shield -->
+        <path
+            android:fillColor="#00D2FF"
+            android:pathData="M54,36 L65,42 C65,54 59,63 54,69 C49,63 43,54 43,42 Z" />
+        <!-- Midnight Dark Core Keyhole Container -->
+        <path
+            android:fillColor="#0B0F19"
+            android:pathData="M54,43 C51.8,43 50,44.8 50,47 L50,50 L48,50 C46.9,50 46,50.9 46,52 L46,61 C46,62.1 46.9,63 48,63 L60,63 C61.1,63 62,62.1 62,61 L62,52 C62,50.9 61.1,50 60,50 L58,50 L58,47 C58,44.8 56.2,43 54,43 Z M54,45.5 C54.8,45.5 55.5,46.2 55.5,47 L55.5,50 L52.5,50 L52.5,47 C52.5,46.2 53.2,45.5 54,45.5 Z M54,54.5 C55.1,54.5 56,55.4 56,56.5 C56,57.3 55.5,58 54.8,58.3 L55.2,60.5 L52.8,60.5 L53.2,58.3 C52.5,58 52,57.3 52,56.5 C52,55.4 52.9,54.5 54,54.5 Z" />
+        <!-- Top Focus Spark / Diamond -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M54,34 L56,38 L54,40 L52,38 Z" />
+    </group>
+</vector>

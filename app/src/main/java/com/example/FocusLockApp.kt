@@ -35,17 +35,23 @@ class FocusLockApp : Application() {
         super.onCreate()
         instance = this
 
-        database = FocusLockDatabase.getDatabase(this)
-        focusRepository = FocusRepository(this, database.focusDao())
-        preferencesRepository = PreferencesRepository(this)
-        usageStatsRepository = UsageStatsRepository(this)
-        authRepository = AuthRepository(this)
+        try {
+            database = FocusLockDatabase.getDatabase(this)
+            focusRepository = FocusRepository(this, database.focusDao())
+            preferencesRepository = PreferencesRepository(this)
+            usageStatsRepository = UsageStatsRepository(this)
+            authRepository = AuthRepository(this)
 
-        CoroutineScope(Dispatchers.IO).launch {
-            focusRepository.ensureDefaultWebsitesSeeded()
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    focusRepository.ensureDefaultWebsitesSeeded()
+                } catch (_: Exception) {}
+            }
+
+            createNotificationChannels()
+        } catch (e: Exception) {
+            android.util.Log.e("FocusLockApp", "Error during app init: ${e.message}", e)
         }
-
-        createNotificationChannels()
     }
 
     private fun createNotificationChannels() {

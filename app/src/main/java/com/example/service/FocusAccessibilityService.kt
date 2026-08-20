@@ -47,7 +47,9 @@ class FocusAccessibilityService : AccessibilityService() {
         // Observe Room database updates for any custom-added or toggled websites in real-time
         serviceScope.launch {
             try {
-                FocusLockApp.instance.database.focusDao().getAllBlockedWebsites().collect { list ->
+                val app = applicationContext as? FocusLockApp
+                val db = app?.database ?: com.example.data.local.FocusLockDatabase.getDatabase(applicationContext)
+                db.focusDao().getAllBlockedWebsites().collect { list ->
                     val enabled = list.filter { it.isEnabled }.map { it.domain.lowercase().trim() }
                     synchronized(blockedDomainsCache) {
                         blockedDomainsCache.clear()
