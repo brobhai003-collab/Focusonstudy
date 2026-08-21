@@ -118,7 +118,7 @@ fun ZenMascotCard(
                 contentAlignment = Alignment.Center
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.img_mascot_zen),
+                    painter = painterResource(id = R.drawable.ic_mascot_zen),
                     contentDescription = "Zen Companion",
                     modifier = Modifier
                         .size(56.dp)

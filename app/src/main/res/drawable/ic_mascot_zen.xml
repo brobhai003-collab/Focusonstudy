@@ -1,0 +1,104 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/apk/res-auto"
+    android:width="128dp"
+    android:height="128dp"
+    android:viewportWidth="128"
+    android:viewportHeight="128">
+
+    <!-- Outer Glow Circle -->
+    <path
+        android:pathData="M64,64m-60,0a60,60 0,1 1,120 0a60,60 0,1 1,-120 0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="64"
+                android:centerY="64"
+                android:gradientRadius="60"
+                android:type="radial">
+                <item android:color="#FF1E1B4B" android:offset="0.0" />
+                <item android:color="#FF0B0F19" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Glowing Cyber Aura / Shield Ring -->
+    <path
+        android:pathData="M64,64m-52,0a52,52 0,1 1,104 0a52,52 0,1 1,-104 0"
+        android:strokeWidth="2.5"
+        android:strokeColor="#FF06B6D4" />
+
+    <!-- Lotus / Cyber Wings Bottom -->
+    <path
+        android:fillColor="#3306B6D4"
+        android:pathData="M32,88 C44,98 56,102 64,102 C72,102 84,98 96,88 C88,96 76,104 64,104 C52,104 40,96 32,88 Z" />
+
+    <!-- Robot Head / Zen Mask -->
+    <path
+        android:pathData="M40,46 C40,34 50,26 64,26 C78,26 88,34 88,46 L88,72 C88,82 76,90 64,90 C52,90 40,82 40,72 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="40"
+                android:startY="26"
+                android:endX="88"
+                android:endY="90"
+                android:type="linear">
+                <item android:color="#FF1E293B" android:offset="0.0" />
+                <item android:color="#FF0F172A" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Head Outline -->
+    <path
+        android:pathData="M40,46 C40,34 50,26 64,26 C78,26 88,34 88,46 L88,72 C88,82 76,90 64,90 C52,90 40,82 40,72 Z"
+        android:strokeWidth="2"
+        android:strokeColor="#FF8B5CF6" />
+
+    <!-- Zen Third-Eye / Focus Diamond Gem -->
+    <path
+        android:fillColor="#FF06B6D4"
+        android:pathData="M64,34 L69,40 L64,46 L59,40 Z" />
+
+    <!-- Neon Visor / Cyber Eye Glow -->
+    <path
+        android:pathData="M48,54 C48,51 54,49 64,49 C74,49 80,51 80,54 L80,62 C80,65 74,67 64,67 C54,67 48,65 48,62 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="48"
+                android:startY="49"
+                android:endX="80"
+                android:endY="67"
+                android:type="linear">
+                <item android:color="#FF06B6D4" android:offset="0.0" />
+                <item android:color="#FF3B82F6" android:offset="0.5" />
+                <item android:color="#FF8B5CF6" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Glowing Focused Eyes Inside Visor -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,58m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M74,58m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+
+    <!-- Zen Smile / Aura Arc -->
+    <path
+        android:pathData="M56,76 C60,80 68,80 72,76"
+        android:strokeWidth="2"
+        android:strokeColor="#FF10B981"
+        android:strokeLineCap="round" />
+
+    <!-- Floating Energy Sparks -->
+    <path
+        android:fillColor="#FF10B981"
+        android:pathData="M26,50 L28,52 L26,54 L24,52 Z" />
+    <path
+        android:fillColor="#FF06B6D4"
+        android:pathData="M102,50 L104,52 L102,54 L100,52 Z" />
+    <path
+        android:fillColor="#FF8B5CF6"
+        android:pathData="M64,16 L66,19 L64,22 L62,19 Z" />
+
+</vector>

@@ -148,7 +148,7 @@ fun FocusLockMainApp(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Image(
-                            painter = painterResource(id = R.drawable.img_mascot_zen),
+                            painter = painterResource(id = R.drawable.ic_mascot_zen),
                             contentDescription = "ZenBot Mascot",
                             modifier = Modifier
                                 .size(34.dp)
