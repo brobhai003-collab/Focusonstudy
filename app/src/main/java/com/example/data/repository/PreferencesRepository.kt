@@ -23,11 +23,11 @@ class PreferencesRepository(context: Context) {
     val isStrictMode: StateFlow<Boolean> = _isStrictMode.asStateFlow()
 
     private val _isShortsBlockerEnabled =
-        MutableStateFlow(prefs.getBoolean(KEY_SHORTS_BLOCKER, true))
+        MutableStateFlow(prefs.getBoolean(KEY_SHORTS_BLOCKER, false))
     val isShortsBlockerEnabled: StateFlow<Boolean> = _isShortsBlockerEnabled.asStateFlow()
 
     private val _isWebBlockerEnabled =
-        MutableStateFlow(prefs.getBoolean(KEY_WEB_BLOCKER, true))
+        MutableStateFlow(prefs.getBoolean(KEY_WEB_BLOCKER, false))
     val isWebBlockerEnabled: StateFlow<Boolean> = _isWebBlockerEnabled.asStateFlow()
 
     private val _selectedAmbient = MutableStateFlow(
@@ -35,7 +35,7 @@ class PreferencesRepository(context: Context) {
     )
     val selectedAmbient: StateFlow<AmbientSound> = _selectedAmbient.asStateFlow()
 
-    private val _currentStreak = MutableStateFlow(prefs.getInt(KEY_STREAK, 3))
+    private val _currentStreak = MutableStateFlow(prefs.getInt(KEY_STREAK, 0))
     val currentStreak: StateFlow<Int> = _currentStreak.asStateFlow()
 
     private val _isOnboardingDone = MutableStateFlow(prefs.getBoolean(KEY_ONBOARDING_DONE, false))

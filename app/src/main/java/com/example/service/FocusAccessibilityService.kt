@@ -22,27 +22,10 @@ class FocusAccessibilityService : AccessibilityService() {
     private var lastBlockedTime = 0L
     private val debounceMillis = 1500L
 
-    private val corePermanentBlockedSites = listOf(
-        "youtube.com",
-        "m.youtube.com",
-        "youtu.be",
-        "instagram.com",
-        "mojapp.in",
-        "moj.com",
-        "in.moj.app",
-        "tiktok.com",
-        "facebook.com",
-        "twitter.com",
-        "x.com",
-        "reddit.com",
-        "snapchat.com"
-    )
-
     private val blockedDomainsCache = Collections.synchronizedSet(mutableSetOf<String>())
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        blockedDomainsCache.addAll(corePermanentBlockedSites)
 
         // Observe Room database updates for any custom-added or toggled websites in real-time
         serviceScope.launch {
@@ -53,7 +36,6 @@ class FocusAccessibilityService : AccessibilityService() {
                     val enabled = list.filter { it.isEnabled }.map { it.domain.lowercase().trim() }
                     synchronized(blockedDomainsCache) {
                         blockedDomainsCache.clear()
-                        blockedDomainsCache.addAll(corePermanentBlockedSites)
                         blockedDomainsCache.addAll(enabled)
                     }
                 }
@@ -164,14 +146,14 @@ class FocusAccessibilityService : AccessibilityService() {
             }
         }
 
-        if (isTimerRunning && (isExplicitlyBlocked || isCommonDistraction(packageName))) {
+        if (isTimerRunning && isExplicitlyBlocked) {
             triggerBlock(packageName, app?.appName ?: packageName, "🎯 Focus Session is Active! Stay locked in.")
             return
         }
 
         // Check B: Active Scheduled Lockout Window
         val activeSchedule = getActiveScheduleMatchingNow()
-        if (activeSchedule != null && (isExplicitlyBlocked || isCommonDistraction(packageName))) {
+        if (activeSchedule != null && isExplicitlyBlocked) {
             triggerBlock(
                 packageName,
                 app?.appName ?: packageName,
@@ -183,7 +165,7 @@ class FocusAccessibilityService : AccessibilityService() {
         // Check C: Task-Based Unlock Pending
         val pendingTask = FocusLockApp.instance.database.focusDao().getActiveTaskUnlock()
         if (pendingTask != null && !pendingTask.isUnlocked) {
-            if (packageName != pendingTask.targetPackageName && (isExplicitlyBlocked || isCommonDistraction(packageName))) {
+            if (packageName != pendingTask.targetPackageName && isExplicitlyBlocked) {
                 val remainingMins = (pendingTask.requiredMinutes - pendingTask.completedMinutes).coerceAtLeast(1)
                 triggerBlock(
                     packageName,
@@ -329,9 +311,9 @@ class FocusAccessibilityService : AccessibilityService() {
             // 2. Recursive scan for any address bar or webview node text if needed
             collectAddressBarTexts(root, candidateTexts, maxDepth = 4)
 
-            // Current enabled domains snapshot (including custom-added + core permanent)
+            // Current enabled domains snapshot
             val activeDomains: Set<String> = synchronized(blockedDomainsCache) {
-                if (blockedDomainsCache.isEmpty()) corePermanentBlockedSites.toSet() else blockedDomainsCache.toSet()
+                blockedDomainsCache.toSet()
             }
 
             for (rawText in candidateTexts) {

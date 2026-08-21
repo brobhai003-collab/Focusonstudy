@@ -89,6 +89,9 @@ interface FocusDao {
     @Query("SELECT * FROM blocked_websites ORDER BY domain ASC")
     fun getAllBlockedWebsites(): Flow<List<BlockedWebsiteEntity>>
 
+    @Query("SELECT * FROM blocked_websites")
+    suspend fun getAllWebsitesList(): List<BlockedWebsiteEntity>
+
     @Query("SELECT * FROM blocked_websites WHERE isEnabled = 1")
     suspend fun getEnabledWebsites(): List<BlockedWebsiteEntity>
 

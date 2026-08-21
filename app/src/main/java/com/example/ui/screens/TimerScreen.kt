@@ -399,8 +399,8 @@ fun TimerScreen(
                     Text("START FOCUS SESSION", fontWeight = FontWeight.Black, fontSize = 16.sp, letterSpacing = 1.sp)
                 }
             } else {
-                if (isSessionStrictLocked) {
-                    // Auto Strict Lock Enforced Banner & Completely Locked Controls
+                if (isStrictMode) {
+                    // Strict Mode Enforced Banner & Completely Locked Controls (Only when Strict Mode is ON)
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -432,16 +432,13 @@ fun TimerScreen(
                             Spacer(modifier = Modifier.width(14.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = if (isStrictMode) "Strict Mode Active" else "Auto Strict-Lock Engaged",
+                                    text = "Strict Mode Active",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = CoralStrict
                                 )
                                 Text(
-                                    text = if (isStrictMode) 
-                                        "Strict Mode is on. Pause & Give Up are locked until session ends."
-                                    else 
-                                        "1-minute grace passed! Pause & Give Up are locked until timer completes to keep you distraction-free.",
+                                    text = "Strict Mode is ON. Timer cannot be paused or stopped until the session finishes.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -449,84 +446,51 @@ fun TimerScreen(
                         }
                     }
                 } else {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        // Grace Period Banner
-                        if (graceSecondsRemaining > 0) {
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 10.dp),
-                                color = AmberWarning.copy(alpha = 0.12f),
-                                shape = RoundedCornerShape(12.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, AmberWarning.copy(alpha = 0.4f))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        Icons.Default.Lock,
-                                        contentDescription = null,
-                                        tint = AmberWarning,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Grace Period: Auto-Lock in ${graceSecondsRemaining}s",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = AmberWarning
-                                    )
-                                }
-                            }
+                    // Normal Mode: User has full continuous access to Pause, Resume, and Stop/Give Up anytime
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Pause / Resume
+                        Button(
+                            onClick = {
+                                if (isPaused) viewModel.resumeFocusSession()
+                                else viewModel.pauseFocusSession()
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(54.dp)
+                                .testTag("pause_resume_button"),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = VioletNeon,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Icon(
+                                if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                                contentDescription = null
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (isPaused) "Resume" else "Pause", fontWeight = FontWeight.Bold)
                         }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        // Stop / Give Up Button
+                        OutlinedButton(
+                            onClick = { showGiveUpConfirmDialog = true },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(54.dp)
+                                .testTag("stop_focus_button"),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = CoralStrict
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.5.dp, CoralStrict),
+                            shape = RoundedCornerShape(16.dp)
                         ) {
-                            // Pause / Resume
-                            Button(
-                                onClick = {
-                                    if (isPaused) viewModel.resumeFocusSession()
-                                    else viewModel.pauseFocusSession()
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(54.dp)
-                                    .testTag("pause_resume_button"),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = VioletNeon,
-                                    contentColor = Color.White
-                                ),
-                                shape = RoundedCornerShape(16.dp)
-                            ) {
-                                Icon(
-                                    if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
-                                    contentDescription = null
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(if (isPaused) "Resume" else "Pause", fontWeight = FontWeight.Bold)
-                            }
-
-                            // Stop / Give Up Button
-                            OutlinedButton(
-                                onClick = { showGiveUpConfirmDialog = true },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(54.dp)
-                                    .testTag("stop_focus_button"),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = CoralStrict
-                                ),
-                                border = androidx.compose.foundation.BorderStroke(1.5.dp, CoralStrict),
-                                shape = RoundedCornerShape(16.dp)
-                            ) {
-                                Icon(Icons.Default.Stop, contentDescription = null, tint = CoralStrict)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Give Up", fontWeight = FontWeight.Bold, color = CoralStrict)
-                            }
+                            Icon(Icons.Default.Stop, contentDescription = null, tint = CoralStrict)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Stop / Give Up", fontWeight = FontWeight.Bold, color = CoralStrict)
                         }
                     }
                 }

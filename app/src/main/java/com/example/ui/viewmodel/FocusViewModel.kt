@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -61,32 +63,24 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     val isShortsBlockerEnabled: StateFlow<Boolean> = prefsRepo.isShortsBlockerEnabled
     val isWebBlockerEnabled: StateFlow<Boolean> = prefsRepo.isWebBlockerEnabled
 
-    // Auto Strict Lock after 60 seconds (1 minute) of session start or if Strict Mode is explicitly enabled
+    // Strict Lock is ONLY active when Strict Mode is explicitly enabled by the user
     val isSessionStrictLocked: StateFlow<Boolean> = combine(
         isSessionActive,
-        isStrictMode,
-        elapsedSeconds
-    ) { active, strict, elapsed ->
-        active && (strict || elapsed >= 60)
+        isStrictMode
+    ) { active, strict ->
+        active && strict
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    // Complete modification lock during active session when strict mode is armed or grace period has passed
+    // Complete modification lock during active session ONLY when strict mode is armed
     val isModificationLocked: StateFlow<Boolean> = combine(
         isSessionActive,
-        isStrictMode,
-        isSessionStrictLocked
-    ) { active, strict, strictLocked ->
-        active && (strict || strictLocked)
+        isStrictMode
+    ) { active, strict ->
+        active && strict
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    // Grace period remaining countdown (in seconds) before auto strict lock engages
-    val graceSecondsRemaining: StateFlow<Long> = combine(
-        isSessionActive,
-        isStrictMode,
-        elapsedSeconds
-    ) { active, strict, elapsed ->
-        if (active && !strict && elapsed < 60) 60 - elapsed else 0L
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+    // In normal mode, user has no auto-lock countdown and can stop anytime
+    val graceSecondsRemaining: StateFlow<Long> = MutableStateFlow(0L).asStateFlow()
     val selectedAmbient: StateFlow<AmbientSound> = prefsRepo.selectedAmbient
     val currentStreak: StateFlow<Int> = prefsRepo.currentStreak
     val isOnboardingDone: StateFlow<Boolean> = prefsRepo.isOnboardingDone
@@ -127,10 +121,12 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoadingApps = MutableStateFlow(false)
     val isLoadingApps: StateFlow<Boolean> = _isLoadingApps.asStateFlow()
 
-    val filteredInstalledApps = combine(installedApps, appSearchQuery) { apps, query ->
+    val filteredInstalledApps: StateFlow<List<InstalledApp>> = combine(installedApps, appSearchQuery) { apps, query ->
         if (query.isBlank()) apps
         else apps.filter { it.appName.contains(query, ignoreCase = true) || it.packageName.contains(query, ignoreCase = true) }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }.flowOn(kotlinx.coroutines.Dispatchers.Default)
+    .distinctUntilChanged()
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- Permissions Reactive State ---
     private val _hasAccessibility = MutableStateFlow(false)
@@ -207,7 +203,7 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun pauseFocusSession() {
-        if (isSessionActive.value && (isStrictMode.value || isSessionStrictLocked.value)) {
+        if (isSessionActive.value && isStrictMode.value) {
             return // Strict mode completely forbids pausing
         }
         FocusTimerService.pause(getApplication())
@@ -218,7 +214,7 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun stopFocusSession() {
-        if (isSessionActive.value && (isStrictMode.value || isSessionStrictLocked.value)) {
+        if (isSessionActive.value && isStrictMode.value) {
             return // Strict mode completely forbids stopping prematurely
         }
         FocusTimerService.stop(getApplication())
@@ -430,6 +426,13 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
         if (isModificationLocked.value) return
         viewModelScope.launch {
             focusRepo.toggleWebsite(id, enabled)
+        }
+    }
+
+    fun toggleWebsiteDomains(domains: List<String>, enabled: Boolean) {
+        if (isModificationLocked.value) return
+        viewModelScope.launch {
+            focusRepo.setDomainsEnabled(domains, enabled)
         }
     }
 

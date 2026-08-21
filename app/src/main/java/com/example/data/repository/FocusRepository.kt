@@ -88,22 +88,22 @@ class FocusRepository(
                     packageName = pkg,
                     appName = appName,
                     isSystemApp = isSystem,
-                    isBlocked = isKnownDistraction(pkg),
-                    isWhitelisted = isKnownEssential(pkg),
+                    isBlocked = false,
+                    isWhitelisted = false,
                     blockShortsOnly = false
                 )
             }
 
-            // Always include popular social/distraction candidates in the catalogue so users can proactively configure them
+            // Always include popular social/distraction candidates in the catalogue so users can easily find and configure them
             val popularCandidates = listOf(
-                InstalledApp("com.facebook.katana", "Facebook", false, isBlocked = true, isWhitelisted = false),
-                InstalledApp("com.instagram.android", "Instagram", false, isBlocked = true, isWhitelisted = false, blockShortsOnly = true),
-                InstalledApp("com.google.android.youtube", "YouTube", false, isBlocked = true, isWhitelisted = false, blockShortsOnly = true),
-                InstalledApp("com.zhiliaoapp.musically", "TikTok", false, isBlocked = true, isWhitelisted = false),
-                InstalledApp("com.snapchat.android", "Snapchat", false, isBlocked = true, isWhitelisted = false),
-                InstalledApp("com.twitter.android", "X (Twitter)", false, isBlocked = true, isWhitelisted = false),
-                InstalledApp("com.reddit.frontpage", "Reddit", false, isBlocked = true, isWhitelisted = false),
-                InstalledApp("com.whatsapp", "WhatsApp", false, isBlocked = false, isWhitelisted = true)
+                InstalledApp("com.facebook.katana", "Facebook", false, isBlocked = false, isWhitelisted = false),
+                InstalledApp("com.instagram.android", "Instagram", false, isBlocked = false, isWhitelisted = false, blockShortsOnly = false),
+                InstalledApp("com.google.android.youtube", "YouTube", false, isBlocked = false, isWhitelisted = false, blockShortsOnly = false),
+                InstalledApp("com.zhiliaoapp.musically", "TikTok", false, isBlocked = false, isWhitelisted = false),
+                InstalledApp("com.snapchat.android", "Snapchat", false, isBlocked = false, isWhitelisted = false),
+                InstalledApp("com.twitter.android", "X (Twitter)", false, isBlocked = false, isWhitelisted = false),
+                InstalledApp("com.reddit.frontpage", "Reddit", false, isBlocked = false, isWhitelisted = false),
+                InstalledApp("com.whatsapp", "WhatsApp", false, isBlocked = false, isWhitelisted = false)
             )
 
             for (candidate in popularCandidates) {
@@ -133,22 +133,10 @@ class FocusRepository(
                 .thenBy { it.appName.lowercase() }
         )
 
-        // If database is empty, seed defaults
-        if (blockedList.isEmpty()) {
-            val defaults = apps.filter { it.isBlocked || it.isWhitelisted }.map {
-                BlockedAppEntity(
-                    packageName = it.packageName,
-                    appName = it.appName,
-                    isBlocked = it.isBlocked,
-                    isWhitelisted = it.isWhitelisted,
-                    blockShortsOnly = it.blockShortsOnly
-                )
-            }
-            if (defaults.isNotEmpty()) {
-                focusDao.insertBlockedApps(defaults)
-            }
+        // Do not auto-block anything; user will select and enable what they want.
+        // We only seed suggested websites in disabled (OFF) state so user can toggle on if desired.
+        if (blockedList.isEmpty() && focusDao.getAllWebsitesList().isEmpty()) {
             seedDefaultWebsites()
-            seedDefaultSchedule()
         }
 
         apps
@@ -156,22 +144,22 @@ class FocusRepository(
 
     private suspend fun seedDefaultWebsites() {
         val defaultWebs = listOf(
-            BlockedWebsiteEntity(domain = "youtube.com", isEnabled = true),
-            BlockedWebsiteEntity(domain = "instagram.com", isEnabled = true),
-            BlockedWebsiteEntity(domain = "mojapp.in", isEnabled = true),
-            BlockedWebsiteEntity(domain = "moj.com", isEnabled = true),
-            BlockedWebsiteEntity(domain = "tiktok.com", isEnabled = true),
-            BlockedWebsiteEntity(domain = "facebook.com", isEnabled = true),
-            BlockedWebsiteEntity(domain = "twitter.com", isEnabled = true),
-            BlockedWebsiteEntity(domain = "x.com", isEnabled = true),
-            BlockedWebsiteEntity(domain = "reddit.com", isEnabled = true),
-            BlockedWebsiteEntity(domain = "snapchat.com", isEnabled = true)
+            BlockedWebsiteEntity(domain = "youtube.com", isEnabled = false),
+            BlockedWebsiteEntity(domain = "instagram.com", isEnabled = false),
+            BlockedWebsiteEntity(domain = "mojapp.in", isEnabled = false),
+            BlockedWebsiteEntity(domain = "moj.com", isEnabled = false),
+            BlockedWebsiteEntity(domain = "tiktok.com", isEnabled = false),
+            BlockedWebsiteEntity(domain = "facebook.com", isEnabled = false),
+            BlockedWebsiteEntity(domain = "twitter.com", isEnabled = false),
+            BlockedWebsiteEntity(domain = "x.com", isEnabled = false),
+            BlockedWebsiteEntity(domain = "reddit.com", isEnabled = false),
+            BlockedWebsiteEntity(domain = "snapchat.com", isEnabled = false)
         )
         defaultWebs.forEach { focusDao.insertWebsite(it) }
     }
 
     suspend fun ensureDefaultWebsitesSeeded() = withContext(Dispatchers.IO) {
-        val existing = focusDao.getEnabledWebsites().map { it.domain.lowercase() }
+        val allWebs = focusDao.getAllWebsitesList().map { it.domain.lowercase() }
         val required = listOf(
             "youtube.com",
             "instagram.com",
@@ -185,24 +173,14 @@ class FocusRepository(
             "snapchat.com"
         )
         for (dom in required) {
-            if (!existing.contains(dom)) {
-                focusDao.insertWebsite(BlockedWebsiteEntity(domain = dom, isEnabled = true))
+            if (!allWebs.contains(dom)) {
+                focusDao.insertWebsite(BlockedWebsiteEntity(domain = dom, isEnabled = false))
             }
         }
     }
 
     private suspend fun seedDefaultSchedule() {
-        focusDao.insertSchedule(
-            FocusScheduleEntity(
-                label = "Evening Deep Focus",
-                startHour = 18,
-                startMinute = 0,
-                endHour = 20,
-                endMinute = 0,
-                daysOfWeek = "1,2,3,4,5",
-                isEnabled = true
-            )
-        )
+        // Kept empty: No default schedule is pre-created or enabled. User creates their own.
     }
 
     private fun isKnownDistraction(pkg: String): Boolean {
@@ -292,4 +270,17 @@ class FocusRepository(
     }
     suspend fun toggleWebsite(id: Long, enabled: Boolean) = focusDao.updateWebsiteStatus(id, enabled)
     suspend fun deleteWebsite(id: Long) = focusDao.deleteWebsite(id)
+
+    suspend fun setDomainsEnabled(domains: List<String>, isEnabled: Boolean) = withContext(Dispatchers.IO) {
+        val existing = focusDao.getAllWebsitesList()
+        for (dom in domains) {
+            val clean = dom.trim().lowercase()
+            val match = existing.find { it.domain.lowercase().trim() == clean }
+            if (match != null) {
+                focusDao.updateWebsiteStatus(match.id, isEnabled)
+            } else {
+                focusDao.insertWebsite(BlockedWebsiteEntity(domain = clean, isEnabled = isEnabled))
+            }
+        }
+    }
 }

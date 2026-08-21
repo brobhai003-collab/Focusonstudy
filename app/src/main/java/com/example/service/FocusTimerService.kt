@@ -170,11 +170,11 @@ class FocusTimerService : Service() {
     }
 
     private fun isSessionStrictLocked(): Boolean {
-        return _isStrictMode.value || (_isSessionActive.value && _elapsedSeconds.value >= 60)
+        return _isStrictMode.value && _isSessionActive.value
     }
 
     private fun pauseSession() {
-        if (_isStrictMode.value || isSessionStrictLocked()) return // Strict mode completely blocks pause
+        if (_isStrictMode.value) return // Strict mode completely blocks pause
         _isPaused.value = true
         updateNotification()
     }
@@ -231,8 +231,8 @@ class FocusTimerService : Service() {
     }
 
     private fun stopFocusSession(userCancelled: Boolean) {
-        if (userCancelled && (_isStrictMode.value || isSessionStrictLocked())) {
-            // Cannot cancel prematurely during strict mode or after grace period
+        if (userCancelled && _isStrictMode.value) {
+            // Cannot cancel prematurely during strict mode
             return
         }
 

@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,11 +20,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AlternateEmail
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.VideoLibrary
@@ -59,6 +65,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -71,6 +78,16 @@ import com.example.ui.theme.CyanNeon
 import com.example.ui.theme.EmeraldSuccess
 import com.example.ui.theme.VioletNeon
 import com.example.ui.viewmodel.FocusViewModel
+
+private data class PredefinedWebsite(
+    val id: String,
+    val name: String,
+    val description: String,
+    val domains: List<String>,
+    val icon: ImageVector,
+    val iconColor: Color,
+    val tagText: String
+)
 
 @Composable
 fun AppBlockerScreen(
@@ -90,6 +107,87 @@ fun AppBlockerScreen(
 
     var showAddWebsiteDialog by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("ALL") } // ALL, BLOCKED, WHITELISTED
+
+    val predefinedWebsites = remember {
+        listOf(
+            PredefinedWebsite(
+                id = "youtube",
+                name = "YouTube",
+                description = "youtube.com (Shorts specifically)",
+                domains = listOf("youtube.com", "m.youtube.com", "youtu.be"),
+                icon = Icons.Default.PlayCircle,
+                iconColor = Color(0xFFFF0000),
+                tagText = "Shorts & Videos"
+            ),
+            PredefinedWebsite(
+                id = "instagram",
+                name = "Instagram",
+                description = "instagram.com (Reels specifically)",
+                domains = listOf("instagram.com"),
+                icon = Icons.Default.CameraAlt,
+                iconColor = Color(0xFFE1306C),
+                tagText = "Reels & Stories"
+            ),
+            PredefinedWebsite(
+                id = "moj",
+                name = "Moj",
+                description = "moj.app / mojapp.in",
+                domains = listOf("moj.app", "mojapp.in", "moj.com"),
+                icon = Icons.Default.VideoLibrary,
+                iconColor = Color(0xFFFFB300),
+                tagText = "Short Videos"
+            ),
+            PredefinedWebsite(
+                id = "tiktok",
+                name = "TikTok",
+                description = "tiktok.com",
+                domains = listOf("tiktok.com", "m.tiktok.com"),
+                icon = Icons.Default.Movie,
+                iconColor = Color(0xFF00E5FF),
+                tagText = "Video Feed"
+            ),
+            PredefinedWebsite(
+                id = "facebook",
+                name = "Facebook",
+                description = "facebook.com",
+                domains = listOf("facebook.com", "m.facebook.com", "fb.com"),
+                icon = Icons.Default.Public,
+                iconColor = Color(0xFF1877F2),
+                tagText = "Watch & Feed"
+            ),
+            PredefinedWebsite(
+                id = "snapchat",
+                name = "Snapchat",
+                description = "snapchat.com",
+                domains = listOf("snapchat.com", "web.snapchat.com"),
+                icon = Icons.Default.ChatBubble,
+                iconColor = Color(0xFFFFFC00),
+                tagText = "Spotlight & Stories"
+            ),
+            PredefinedWebsite(
+                id = "twitter",
+                name = "X (Twitter)",
+                description = "twitter.com / x.com",
+                domains = listOf("twitter.com", "x.com", "mobile.twitter.com"),
+                icon = Icons.Default.AlternateEmail,
+                iconColor = Color(0xFF38BDF8),
+                tagText = "Timeline"
+            )
+        )
+    }
+
+    val predefinedDomainSet = remember(predefinedWebsites) {
+        predefinedWebsites.flatMap { it.domains.map { d -> d.lowercase().trim() } }.toSet()
+    }
+
+    val customWebsites = remember(blockedWebsites, predefinedDomainSet) {
+        blockedWebsites.filter { entity ->
+            val clean = entity.domain.lowercase().trim()
+            clean !in predefinedDomainSet && !predefinedWebsites.any { p ->
+                p.domains.any { d -> clean.equals(d, ignoreCase = true) || clean.contains(d) }
+            }
+        }
+    }
 
     Column(
         modifier = modifier
@@ -354,9 +452,10 @@ fun AppBlockerScreen(
                 }
             }
         } else {
-            // TAB 2: Website Blocker
+            // TAB 2: Website Blocker (Predefined 1-Tap List + Custom URLs)
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 item {
+                    // Master Browser Domain Shield Card
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         shape = RoundedCornerShape(16.dp),
@@ -377,7 +476,7 @@ fun AppBlockerScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Inspects Chrome, Firefox, and Samsung browsers to block distracting sites",
+                                    text = "Inspects Chrome, Firefox, Opera, and Samsung browser URLs to block distracting sites",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -392,7 +491,135 @@ fun AppBlockerScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // Section: Quick 1-Tap Blocked Websites
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "POPULAR PLATFORMS (1-TAP TOGGLE)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = CyanNeon,
+                            letterSpacing = 1.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                // Predefined Websites List
+                items(predefinedWebsites, key = { it.id }) { item ->
+                    val isBlocked = item.domains.any { dom ->
+                        blockedWebsites.any { entity ->
+                            entity.isEnabled && entity.domain.equals(dom, ignoreCase = true)
+                        }
+                    }
+
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isBlocked) CoralStrict.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(14.dp),
+                        border = if (isBlocked) BorderStroke(1.dp, CoralStrict.copy(alpha = 0.35f)) else null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .padding(14.dp)
+                                .fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Brand Icon Badge
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(item.iconColor.copy(alpha = 0.18f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = item.icon,
+                                    contentDescription = item.name,
+                                    tint = item.iconColor,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = item.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isBlocked) CoralStrict else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Surface(
+                                        color = if (isBlocked) CoralStrict.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface,
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text(
+                                            text = item.tagText,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (isBlocked) CoralStrict else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = item.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Switch(
+                                checked = isBlocked,
+                                onCheckedChange = { enabled ->
+                                    if (!isModificationLocked) {
+                                        viewModel.toggleWebsiteDomains(item.domains, enabled)
+                                    }
+                                },
+                                enabled = !isModificationLocked,
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = CoralStrict,
+                                    checkedTrackColor = CoralStrict.copy(alpha = 0.4f)
+                                ),
+                                modifier = Modifier.scale(0.85f)
+                            )
+                        }
+                    }
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // Custom Websites Section Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "CUSTOM WEBSITES & DOMAINS",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = CyanNeon,
+                            letterSpacing = 1.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     Button(
                         onClick = { if (!isModificationLocked) showAddWebsiteDialog = true },
@@ -403,60 +630,88 @@ fun AppBlockerScreen(
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (isModificationLocked) "🔒 Locked in Session" else "Add Blocked Website URL", fontWeight = FontWeight.Bold)
+                        Text(
+                            if (isModificationLocked) "🔒 Locked in Session" else "Add Custom Blocked URL / Domain",
+                            fontWeight = FontWeight.Bold
+                        )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                 }
 
-                items(blockedWebsites, key = { it.id }) { site ->
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .padding(12.dp)
-                                .fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
+                if (customWebsites.isEmpty()) {
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(
-                                Icons.Default.Block,
-                                contentDescription = null,
-                                tint = CoralStrict,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = site.domain,
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Switch(
-                                checked = site.isEnabled,
-                                onCheckedChange = { if (!isModificationLocked) viewModel.toggleWebsite(site.id, it) },
-                                enabled = !isModificationLocked,
-                                modifier = Modifier.scale(0.85f)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            IconButton(
-                                onClick = { if (!isModificationLocked) viewModel.deleteWebsite(site.id) },
-                                enabled = !isModificationLocked,
-                                modifier = Modifier.size(32.dp)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(20.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No custom websites added yet.\nTap 'Add Custom Blocked URL' to block any blog, news, or site.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    items(customWebsites, key = { it.id }) { site ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = "Delete",
-                                    tint = if (isModificationLocked) Color(0xFF475569) else Color(0xFF94A3B8),
-                                    modifier = Modifier.size(18.dp)
+                                    Icons.Default.Block,
+                                    contentDescription = null,
+                                    tint = CoralStrict,
+                                    modifier = Modifier.size(20.dp)
                                 )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = site.domain,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Switch(
+                                    checked = site.isEnabled,
+                                    onCheckedChange = { if (!isModificationLocked) viewModel.toggleWebsite(site.id, it) },
+                                    enabled = !isModificationLocked,
+                                    colors = SwitchDefaults.colors(checkedThumbColor = CoralStrict),
+                                    modifier = Modifier.scale(0.85f)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                IconButton(
+                                    onClick = { if (!isModificationLocked) viewModel.deleteWebsite(site.id) },
+                                    enabled = !isModificationLocked,
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "Delete",
+                                        tint = if (isModificationLocked) Color(0xFF475569) else Color(0xFF94A3B8),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }
