@@ -109,7 +109,8 @@ class FocusAccessibilityService : AccessibilityService() {
         // 3. Check Website Blocker in Browser (Applies when Web Shield is ON or Focus Session is Active)
         val isWebBlockEnabled =
             FocusLockApp.instance.preferencesRepository.isWebBlockerEnabled.value
-        val isSessionActive = FocusTimerService.isSessionActive.value
+        val isSessionActive = FocusTimerService.isSessionActive.value ||
+            FocusLockApp.instance.preferencesRepository.isSessionCurrentlyActive()
 
         if ((isWebBlockEnabled || isSessionActive) && isBrowserPackage(packageName)) {
             val blockedDomain = detectBlockedWebsite(rootInActiveWindow)
@@ -140,8 +141,29 @@ class FocusAccessibilityService : AccessibilityService() {
 
         if (isWhitelisted) return // Always allow whitelisted apps
 
-        // Check A: Active Focus Session Running
-        val isTimerRunning = FocusTimerService.isSessionActive.value
+        // Check A: Active Focus Session Running (In-memory or Persistent)
+        val prefsRepo = FocusLockApp.instance.preferencesRepository
+        val isPersistentActive = prefsRepo.isSessionCurrentlyActive()
+        val isTimerRunning = FocusTimerService.isSessionActive.value || isPersistentActive
+
+        if (isPersistentActive && !FocusTimerService.isSessionActive.value) {
+            // Auto re-spawn FocusTimerService in foreground if it was killed
+            val saved = prefsRepo.getActiveSession()
+            if (saved != null && saved.targetEndTimeMillis > System.currentTimeMillis()) {
+                val remaining = ((saved.targetEndTimeMillis - System.currentTimeMillis()) / 1000L).coerceAtLeast(10L)
+                val mode = try { com.example.data.model.FocusMode.valueOf(saved.mode) } catch (e: Exception) { com.example.data.model.FocusMode.TIMER }
+                val sound = try { com.example.data.model.AmbientSound.valueOf(saved.sound) } catch (e: Exception) { com.example.data.model.AmbientSound.NONE }
+                FocusTimerService.start(
+                    context = applicationContext,
+                    mode = mode,
+                    durationSeconds = remaining,
+                    label = saved.label,
+                    isStrict = saved.isStrict,
+                    sound = sound
+                )
+            }
+        }
+
         if (isTimerRunning && (isExplicitlyBlocked || isCommonDistraction(packageName))) {
             triggerBlock(packageName, app?.appName ?: packageName, "🎯 Focus Session is Active! Stay locked in.")
             return

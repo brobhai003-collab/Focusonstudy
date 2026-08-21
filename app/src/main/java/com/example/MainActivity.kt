@@ -134,8 +134,11 @@ fun FocusLockMainApp(
     val isStrictMode by focusViewModel.isStrictMode.collectAsStateWithLifecycle()
     val currentStreak by focusViewModel.currentStreak.collectAsStateWithLifecycle()
     val isOnboardingDone by focusViewModel.isOnboardingDone.collectAsStateWithLifecycle()
+    val hasAccessibility by focusViewModel.hasAccessibility.collectAsStateWithLifecycle()
+    val hasUsageStats by focusViewModel.hasUsageStats.collectAsStateWithLifecycle()
+    val hasOverlay by focusViewModel.hasOverlay.collectAsStateWithLifecycle()
 
-    val showOnboarding = !isOnboardingDone
+    val showOnboarding = !isOnboardingDone || !hasAccessibility || !hasUsageStats || !hasOverlay
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),

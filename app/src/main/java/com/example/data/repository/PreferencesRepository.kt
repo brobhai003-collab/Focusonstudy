@@ -116,6 +116,20 @@ class PreferencesRepository(context: Context) {
         )
     }
 
+    fun isSessionCurrentlyActive(): Boolean {
+        val session = getActiveSession() ?: return false
+        return session.targetEndTimeMillis > System.currentTimeMillis()
+    }
+
+    fun isStrictSessionCurrentlyActive(): Boolean {
+        val session = getActiveSession() ?: return false
+        return session.isStrict && session.targetEndTimeMillis > System.currentTimeMillis()
+    }
+
+    fun isStrictActive(): Boolean {
+        return _isStrictMode.value || isStrictSessionCurrentlyActive()
+    }
+
     fun recordSessionSuccess() {
         val todayStr = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())
         val lastDate = prefs.getString(KEY_LAST_STREAK_DATE, "")
@@ -128,10 +142,6 @@ class PreferencesRepository(context: Context) {
                 .apply()
             _currentStreak.value = newStreak
         }
-    }
-
-    fun isStrictActive(): Boolean {
-        return prefs.getBoolean(KEY_STRICT_MODE, false)
     }
 
     companion object {

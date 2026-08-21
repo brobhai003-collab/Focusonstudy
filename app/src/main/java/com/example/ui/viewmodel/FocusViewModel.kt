@@ -439,6 +439,10 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
         } else true
     }
 
+    fun hasAllRequiredPermissions(): Boolean {
+        return hasAccessibilityPermission() && hasUsageStatsPermission() && hasOverlayPermission()
+    }
+
     fun isDeviceAdminActive(): Boolean {
         val dpm = getApplication<Application>().getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         val adminComponent = ComponentName(getApplication(), FocusDeviceAdminReceiver::class.java)
