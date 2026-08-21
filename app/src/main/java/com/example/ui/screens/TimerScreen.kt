@@ -56,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -98,6 +99,7 @@ fun TimerScreen(
     val currentStreak by viewModel.currentStreak.collectAsStateWithLifecycle()
     val blockedApps by viewModel.blockedAppsList.collectAsStateWithLifecycle()
 
+    val context = LocalContext.current
     var showAmbientDialog by remember { mutableStateOf(false) }
     var showGiveUpConfirmDialog by remember { mutableStateOf(false) }
 
@@ -322,7 +324,7 @@ fun TimerScreen(
                         .clip(RoundedCornerShape(14.dp))
                         .clickable(enabled = !isSessionActive) {
                             if (!isProUser) onNavigateToPro()
-                            else viewModel.toggleStrictMode(!isStrictMode)
+                            else viewModel.toggleStrictMode(!isStrictMode, context)
                         }
                         .testTag("strict_mode_button"),
                     color = if (isStrictMode) CoralStrict.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
@@ -375,7 +377,13 @@ fun TimerScreen(
             // Main Primary Action Buttons
             if (!isSessionActive) {
                 Button(
-                    onClick = { viewModel.startFocusSession() },
+                    onClick = {
+                        if (isStrictMode && !viewModel.isDeviceAdminActive()) {
+                            viewModel.requestDeviceAdminPermission(context)
+                        } else {
+                            viewModel.startFocusSession()
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp)

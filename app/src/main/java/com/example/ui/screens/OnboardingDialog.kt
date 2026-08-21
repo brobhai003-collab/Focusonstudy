@@ -81,7 +81,6 @@ fun OnboardingDialog(
     val hasAccessibility by viewModel.hasAccessibility.collectAsStateWithLifecycle()
     val hasUsage by viewModel.hasUsageStats.collectAsStateWithLifecycle()
     val hasOverlay by viewModel.hasOverlay.collectAsStateWithLifecycle()
-    val hasDeviceAdmin by viewModel.hasDeviceAdmin.collectAsStateWithLifecycle()
 
     // OnResume lifecycle listener to immediately detect permissions when user returns from Android Settings
     DisposableEffect(lifecycleOwner) {
@@ -100,8 +99,7 @@ fun OnboardingDialog(
         !hasAccessibility -> 1
         !hasUsage -> 2
         !hasOverlay -> 3
-        !hasDeviceAdmin -> 4
-        else -> 5 // All 4 mandatory permissions granted!
+        else -> 4 // All 3 mandatory permissions granted!
     }
 
     AlertDialog(
@@ -120,7 +118,7 @@ fun OnboardingDialog(
                     .padding(vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Step Progress Indicator (1 - 2 - 3 - 4)
+                // Step Progress Indicator (1 - 2 - 3)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -133,8 +131,6 @@ fun OnboardingDialog(
                     StepBadge(stepNumber = 2, isActive = currentStep == 2, isCompleted = hasUsage, label = "Usage")
                     StepDivider(isCompleted = hasUsage)
                     StepBadge(stepNumber = 3, isActive = currentStep == 3, isCompleted = hasOverlay, label = "Overlay")
-                    StepDivider(isCompleted = hasOverlay)
-                    StepBadge(stepNumber = 4, isActive = currentStep == 4, isCompleted = hasDeviceAdmin, label = "Admin")
                 }
 
                 AnimatedContent(
@@ -149,7 +145,7 @@ fun OnboardingDialog(
                                 icon = Icons.Default.Accessibility,
                                 iconColor = VioletNeon,
                                 title = "1. Enable Focus Engine",
-                                subtitle = "MANDATORY STEP 1 OF 4",
+                                subtitle = "MANDATORY STEP 1 OF 3",
                                 description = "Dedication requires Accessibility Service to detect when distracting apps (e.g. Instagram, YouTube Shorts, Games) or blocked websites are opened.",
                                 actionText = "Open Accessibility Settings",
                                 buttonTestTag = "open_accessibility_settings_button",
@@ -174,7 +170,7 @@ fun OnboardingDialog(
                                 icon = Icons.Default.QueryStats,
                                 iconColor = CyanNeon,
                                 title = "2. Grant Usage Access",
-                                subtitle = "MANDATORY STEP 2 OF 4",
+                                subtitle = "MANDATORY STEP 2 OF 3",
                                 description = "Allows Dedication to accurately calculate your daily screen time, productive focus minutes, and app usage limits.",
                                 actionText = "Grant Usage Access",
                                 buttonTestTag = "grant_usage_access_button",
@@ -199,7 +195,7 @@ fun OnboardingDialog(
                                 icon = Icons.Default.Layers,
                                 iconColor = AmberWarning,
                                 title = "3. Allow Shield Overlay",
-                                subtitle = "MANDATORY STEP 3 OF 4",
+                                subtitle = "MANDATORY STEP 3 OF 3",
                                 description = "Enables Dedication to display the full-screen Focus Shield instantly over distracting apps during active focus sessions.",
                                 actionText = "Allow Display Overlay",
                                 buttonTestTag = "grant_overlay_permission_button",
@@ -223,45 +219,8 @@ fun OnboardingDialog(
                                 }
                             )
                         }
-                        4 -> {
-                            // STEP 4: Device Administrator (Mandatory)
-                            PermissionStepContent(
-                                icon = Icons.Default.AdminPanelSettings,
-                                iconColor = CoralStrict,
-                                title = "4. Enable Device Admin",
-                                subtitle = "FINAL MANDATORY STEP 4 OF 4",
-                                description = "Prevents tampering, bypassing timers, or uninstalling Dedication while strict focus sessions are in progress.",
-                                actionText = "Activate Device Admin",
-                                buttonTestTag = "grant_device_admin_button",
-                                onActionClick = {
-                                    val compName = ComponentName(context, FocusDeviceAdminReceiver::class.java)
-                                    val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
-                                        putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, compName)
-                                        putExtra(
-                                            DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                                            "Dedication uses Device Administrator to prevent unauthorized uninstallation or bypassing while Strict Mode focus is active."
-                                        )
-                                    }
-                                    try {
-                                        context.startActivity(intent)
-                                    } catch (e: Exception) {
-                                        try {
-                                            val fallbackIntent = Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
-                                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                            }
-                                            context.startActivity(fallbackIntent)
-                                        } catch (e2: Exception) {
-                                            val generalSettings = Intent(Settings.ACTION_SETTINGS).apply {
-                                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                            }
-                                            context.startActivity(generalSettings)
-                                        }
-                                    }
-                                }
-                            )
-                        }
                         else -> {
-                            // ALL 4 PERMISSIONS GRANTED!
+                            // ALL 3 PERMISSIONS GRANTED!
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.fillMaxWidth()
@@ -289,7 +248,7 @@ fun OnboardingDialog(
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
-                                    text = "All 4 security protocols are fully active. Your unbreakable focus shield is ready.",
+                                    text = "Core security protocols are active. You can now start focusing.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center
@@ -304,7 +263,6 @@ fun OnboardingDialog(
                                         PermissionStatusItem(text = "Accessibility Focus Engine Active", isGranted = true)
                                         PermissionStatusItem(text = "Usage & Screen Time Tracker Active", isGranted = true)
                                         PermissionStatusItem(text = "Focus Shield Overlay Active", isGranted = true)
-                                        PermissionStatusItem(text = "Device Administrator Protection Active", isGranted = true)
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(20.dp))

@@ -456,7 +456,7 @@ fun InsightsAndSettingsScreen(
                                 checked = isStrictMode,
                                 onCheckedChange = { enabled ->
                                     if (!isProUser) onNavigateToPro()
-                                    else viewModel.toggleStrictMode(enabled)
+                                    else viewModel.toggleStrictMode(enabled, context)
                                 },
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = Color.White,

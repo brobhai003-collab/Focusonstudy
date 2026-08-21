@@ -145,8 +145,8 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     private val _hasDeviceAdmin = MutableStateFlow(false)
     val hasDeviceAdmin: StateFlow<Boolean> = _hasDeviceAdmin.asStateFlow()
 
-    val hasAllRequiredPermissions: StateFlow<Boolean> = combine(_hasAccessibility, _hasUsageStats, _hasOverlay, _hasDeviceAdmin) { a, u, o, d ->
-        a && u && o && d
+    val hasAllRequiredPermissions: StateFlow<Boolean> = combine(_hasAccessibility, _hasUsageStats, _hasOverlay) { a, u, o ->
+        a && u && o
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     init {
@@ -288,7 +288,7 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun toggleStrictMode(enabled: Boolean) {
+    fun toggleStrictMode(enabled: Boolean, context: Context? = null, onAdminRequired: (() -> Unit)? = null) {
         if (isSessionActive.value) {
             // FORBIDDEN: Cannot toggle Strict Mode during an active session!
             return
@@ -297,7 +297,47 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
             prefsRepo.setStrictMode(false)
             return
         }
-        prefsRepo.setStrictMode(enabled)
+        if (enabled) {
+            if (!isDeviceAdminActive()) {
+                // Device Admin is required before Strict Mode can be armed
+                if (context != null) {
+                    requestDeviceAdminPermission(context)
+                }
+                onAdminRequired?.invoke()
+                prefsRepo.setStrictMode(false)
+                return
+            }
+            prefsRepo.setStrictMode(true)
+        } else {
+            prefsRepo.setStrictMode(false)
+        }
+    }
+
+    fun requestDeviceAdminPermission(context: Context) {
+        val compName = ComponentName(context, FocusDeviceAdminReceiver::class.java)
+        val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+            putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, compName)
+            putExtra(
+                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                "Dedication uses Device Administrator to prevent unauthorized uninstallation or bypassing while Strict Mode focus is active."
+            )
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        try {
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            try {
+                val fallbackIntent = Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(fallbackIntent)
+            } catch (e2: Exception) {
+                val settingsIntent = Intent(Settings.ACTION_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(settingsIntent)
+            }
+        }
     }
 
     fun toggleShortsBlocker(enabled: Boolean) {
@@ -419,7 +459,12 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
         _hasAccessibility.value = hasAccessibilityPermission()
         _hasUsageStats.value = hasUsageStatsPermission()
         _hasOverlay.value = hasOverlayPermission()
-        _hasDeviceAdmin.value = isDeviceAdminActive()
+        val adminActive = isDeviceAdminActive()
+        _hasDeviceAdmin.value = adminActive
+        // If device admin was revoked from Android settings while no session is active, turn off strict mode
+        if (!adminActive && !isSessionActive.value && isStrictMode.value) {
+            prefsRepo.setStrictMode(false)
+        }
     }
 
     // Permissions Helper Checks
@@ -444,7 +489,7 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun hasAllRequiredPermissions(): Boolean {
-        return hasAccessibilityPermission() && hasUsageStatsPermission() && hasOverlayPermission() && isDeviceAdminActive()
+        return hasAccessibilityPermission() && hasUsageStatsPermission() && hasOverlayPermission()
     }
 
     fun isDeviceAdminActive(): Boolean {
