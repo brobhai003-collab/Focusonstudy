@@ -280,6 +280,7 @@ fun AppItemRow(
     onToggleBlock: (Boolean) -> Unit,
     onToggleWhitelist: (Boolean) -> Unit,
     onToggleShorts: (Boolean) -> Unit,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -328,16 +329,28 @@ fun AppItemRow(
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = app.appName,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (!enabled) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "Locked",
+                            tint = CoralStrict,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
                 Text(
-                    text = app.appName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = if (app.isBlocked) "Locked during Focus"
+                    text = if (!enabled && app.isBlocked) "🔒 Locked for Active Session"
+                    else if (app.isBlocked) "Locked during Focus"
                     else if (app.isWhitelisted) "Whitelisted (Always Allowed)"
                     else "Normal Access",
                     style = MaterialTheme.typography.labelSmall,
@@ -347,7 +360,8 @@ fun AppItemRow(
 
             // Whitelist button
             IconButton(
-                onClick = { onToggleWhitelist(!app.isWhitelisted) },
+                onClick = { if (enabled) onToggleWhitelist(!app.isWhitelisted) },
+                enabled = enabled,
                 modifier = Modifier.size(40.dp)
             ) {
                 Icon(
@@ -363,12 +377,17 @@ fun AppItemRow(
             // Block Switch
             Switch(
                 checked = app.isBlocked,
-                onCheckedChange = onToggleBlock,
+                onCheckedChange = { if (enabled) onToggleBlock(it) },
+                enabled = enabled,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
                     checkedTrackColor = CoralStrict,
                     uncheckedThumbColor = Color(0xFF94A3B8),
-                    uncheckedTrackColor = Color(0xFF1E283F)
+                    uncheckedTrackColor = Color(0xFF1E283F),
+                    disabledCheckedThumbColor = Color.White.copy(alpha = 0.8f),
+                    disabledCheckedTrackColor = CoralStrict.copy(alpha = 0.6f),
+                    disabledUncheckedThumbColor = Color(0xFF64748B),
+                    disabledUncheckedTrackColor = Color(0xFF1E283F).copy(alpha = 0.5f)
                 ),
                 modifier = Modifier.scale(0.9f)
             )

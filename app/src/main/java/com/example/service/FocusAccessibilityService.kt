@@ -195,12 +195,29 @@ class FocusAccessibilityService : AccessibilityService() {
     }
 
     private fun isStrictSettingsTampering(packageName: String, event: AccessibilityEvent): Boolean {
-        val isStrict = FocusTimerService.isSessionActive.value && FocusTimerService.isStrictMode.value
-        if (!isStrict) return false
+        val isStrictActive = FocusTimerService.isSessionActive.value && 
+                (FocusTimerService.isStrictMode.value || FocusLockApp.instance.preferencesRepository.isStrictActive())
+        if (!isStrictActive) return false
 
-        if (packageName == "com.android.settings" || packageName == "com.google.android.packageinstaller") {
-            val text = event.text.joinToString(" ").lowercase()
-            return text.contains("uninstall") || text.contains("force stop") || text.contains("focuslock")
+        val lowerPkg = packageName.lowercase()
+        if (lowerPkg.contains("settings") || 
+            lowerPkg.contains("packageinstaller") || 
+            lowerPkg.contains("systemui") ||
+            lowerPkg.contains("deviceadmin")
+        ) {
+            val text = (event.text.joinToString(" ") + " " + (event.contentDescription ?: "")).lowercase()
+            val myPackage = applicationContext.packageName.lowercase()
+            
+            return text.contains("uninstall") || 
+                   text.contains("force stop") || 
+                   text.contains("clear data") || 
+                   text.contains("clear storage") || 
+                   text.contains("device admin") || 
+                   text.contains("device administrator") || 
+                   text.contains("dedication") || 
+                   text.contains("focuslock") ||
+                   text.contains(myPackage) ||
+                   lowerPkg.contains("packageinstaller")
         }
         return false
     }

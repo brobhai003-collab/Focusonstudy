@@ -70,6 +70,15 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
         active && (strict || elapsed >= 60)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    // Complete modification lock during active session when strict mode is armed or grace period has passed
+    val isModificationLocked: StateFlow<Boolean> = combine(
+        isSessionActive,
+        isStrictMode,
+        isSessionStrictLocked
+    ) { active, strict, strictLocked ->
+        active && (strict || strictLocked)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     // Grace period remaining countdown (in seconds) before auto strict lock engages
     val graceSecondsRemaining: StateFlow<Long> = combine(
         isSessionActive,
@@ -195,6 +204,9 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun pauseFocusSession() {
+        if (isSessionActive.value && (isStrictMode.value || isSessionStrictLocked.value)) {
+            return // Strict mode completely forbids pausing
+        }
         FocusTimerService.pause(getApplication())
     }
 
@@ -203,6 +215,9 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun stopFocusSession() {
+        if (isSessionActive.value && (isStrictMode.value || isSessionStrictLocked.value)) {
+            return // Strict mode completely forbids stopping prematurely
+        }
         FocusTimerService.stop(getApplication())
     }
 
@@ -214,6 +229,9 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleAppBlock(packageName: String, appName: String, currentlyBlocked: Boolean) {
+        if (isModificationLocked.value) {
+            return // Blocked app modifications are forbidden during strict active session
+        }
         val newBlocked = !currentlyBlocked
         // Instant Optimistic In-Memory State Update (0ms delay)
         _installedApps.value = _installedApps.value.map { app ->
@@ -231,6 +249,9 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleAppWhitelist(packageName: String, appName: String, currentlyWhitelisted: Boolean) {
+        if (isModificationLocked.value) {
+            return // Whitelist modifications are forbidden during strict active session
+        }
         val newWhitelisted = !currentlyWhitelisted
         // Instant Optimistic In-Memory State Update (0ms delay)
         _installedApps.value = _installedApps.value.map { app ->
@@ -248,6 +269,9 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleAppShortsOnly(packageName: String, appName: String, currentShortsOnly: Boolean) {
+        if (isModificationLocked.value) {
+            return // Modifications forbidden during strict active session
+        }
         val newShorts = !currentShortsOnly
         // Instant Optimistic In-Memory State Update (0ms delay)
         _installedApps.value = _installedApps.value.map { app ->
@@ -262,6 +286,10 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleStrictMode(enabled: Boolean) {
+        if (isSessionActive.value) {
+            // FORBIDDEN: Cannot toggle Strict Mode during an active session!
+            return
+        }
         if (enabled && !prefsRepo.isProUser.value) {
             prefsRepo.setStrictMode(false)
             return
@@ -270,10 +298,12 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleShortsBlocker(enabled: Boolean) {
+        if (isModificationLocked.value) return
         prefsRepo.setShortsBlocker(enabled)
     }
 
     fun toggleWebBlocker(enabled: Boolean) {
+        if (isModificationLocked.value) return
         prefsRepo.setWebBlocker(enabled)
     }
 
@@ -287,6 +317,7 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
 
     // Schedules
     fun addSchedule(label: String, startHour: Int, startMin: Int, endHour: Int, endMin: Int, days: String) {
+        if (isModificationLocked.value) return
         viewModelScope.launch {
             if (!prefsRepo.isProUser.value) {
                 if (schedules.value.isNotEmpty()) {
@@ -308,12 +339,14 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleSchedule(schedule: FocusScheduleEntity) {
+        if (isModificationLocked.value) return
         viewModelScope.launch {
             focusRepo.updateSchedule(schedule.copy(isEnabled = !schedule.isEnabled))
         }
     }
 
     fun deleteSchedule(id: Long) {
+        if (isModificationLocked.value) return
         viewModelScope.launch {
             focusRepo.deleteSchedule(id)
         }
@@ -321,6 +354,7 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
 
     // Task-based Unlock
     fun createTaskUnlock(targetPkg: String, targetName: String, targetMins: Int) {
+        if (isModificationLocked.value) return
         viewModelScope.launch {
             focusRepo.addTaskUnlock(
                 TaskUnlockEntity(
@@ -335,6 +369,7 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun cancelTaskUnlock(id: Long) {
+        if (isModificationLocked.value) return
         viewModelScope.launch {
             focusRepo.deleteTaskUnlock(id)
         }
@@ -342,18 +377,21 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
 
     // Blocked Websites
     fun addBlockedWebsite(domain: String) {
+        if (isModificationLocked.value) return
         viewModelScope.launch {
             focusRepo.addBlockedWebsite(domain)
         }
     }
 
     fun toggleWebsite(id: Long, enabled: Boolean) {
+        if (isModificationLocked.value) return
         viewModelScope.launch {
             focusRepo.toggleWebsite(id, enabled)
         }
     }
 
     fun deleteWebsite(id: Long) {
+        if (isModificationLocked.value) return
         viewModelScope.launch {
             focusRepo.deleteWebsite(id)
         }

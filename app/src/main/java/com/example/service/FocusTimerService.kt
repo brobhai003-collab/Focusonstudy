@@ -96,6 +96,22 @@ class FocusTimerService : Service() {
             _elapsedSeconds.value = 0
         }
 
+        // Persist session to SharedPreferences with epoch timestamps for reboot/restart recovery
+        try {
+            val startTime = System.currentTimeMillis()
+            val targetEndTime = startTime + (targetDuration * 1000L)
+            FocusLockApp.instance.preferencesRepository.saveActiveSession(
+                startTimeMillis = startTime,
+                targetEndTimeMillis = targetEndTime,
+                mode = mode.name,
+                label = label,
+                isStrict = isStrict,
+                sound = sound.name
+            )
+        } catch (e: Exception) {
+            // Ignored
+        }
+
         audioSynth.startPlaying(sound)
         startForeground(NOTIFICATION_ID, buildNotification())
         startTimerLoop()
@@ -158,7 +174,7 @@ class FocusTimerService : Service() {
     }
 
     private fun pauseSession() {
-        if (isSessionStrictLocked()) return // Auto strict-lock after 1 min or manual strict mode ignores pause
+        if (_isStrictMode.value || isSessionStrictLocked()) return // Strict mode completely blocks pause
         _isPaused.value = true
         updateNotification()
     }
@@ -173,6 +189,12 @@ class FocusTimerService : Service() {
         val label = _sessionLabel.value
         val mode = _currentMode.value.name
         val isStrict = _isStrictMode.value
+
+        try {
+            FocusLockApp.instance.preferencesRepository.clearActiveSession()
+        } catch (e: Exception) {
+            // Handled
+        }
 
         serviceScope.launch(Dispatchers.IO) {
             try {
@@ -209,9 +231,15 @@ class FocusTimerService : Service() {
     }
 
     private fun stopFocusSession(userCancelled: Boolean) {
-        if (userCancelled && isSessionStrictLocked()) {
-            // Cannot cancel prematurely during strict mode or after 1-minute grace period
+        if (userCancelled && (_isStrictMode.value || isSessionStrictLocked())) {
+            // Cannot cancel prematurely during strict mode or after grace period
             return
+        }
+
+        try {
+            FocusLockApp.instance.preferencesRepository.clearActiveSession()
+        } catch (e: Exception) {
+            // Handled
         }
 
         if (userCancelled && _elapsedSeconds.value > 60) {

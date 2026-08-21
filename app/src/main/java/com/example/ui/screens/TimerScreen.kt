@@ -320,7 +320,7 @@ fun TimerScreen(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(14.dp))
-                        .clickable {
+                        .clickable(enabled = !isSessionActive) {
                             if (!isProUser) onNavigateToPro()
                             else viewModel.toggleStrictMode(!isStrictMode)
                         }
@@ -350,10 +350,15 @@ fun TimerScreen(
                                 if (!isProUser) {
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text("PRO", fontSize = 9.sp, color = AmberWarning, fontWeight = FontWeight.Black)
+                                } else if (isSessionActive) {
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("LOCKED", fontSize = 8.sp, color = CoralStrict, fontWeight = FontWeight.Black)
                                 }
                             }
                             Text(
-                                text = if (isStrictMode) "Arm Enabled" else "Off (Tap)",
+                                text = if (isSessionActive) {
+                                    if (isStrictMode) "Locked ON" else "Locked OFF"
+                                } else if (isStrictMode) "Armed ON" else "Off (Tap)",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isStrictMode) CoralStrict else MaterialTheme.colorScheme.onSurface,

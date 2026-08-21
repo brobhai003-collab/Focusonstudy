@@ -86,6 +86,7 @@ fun AppBlockerScreen(
     val isShortsBlockerEnabled by viewModel.isShortsBlockerEnabled.collectAsStateWithLifecycle()
     val isWebBlockerEnabled by viewModel.isWebBlockerEnabled.collectAsStateWithLifecycle()
     val blockedWebsites by viewModel.blockedWebsites.collectAsStateWithLifecycle()
+    val isModificationLocked by viewModel.isModificationLocked.collectAsStateWithLifecycle()
 
     var showAddWebsiteDialog by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("ALL") } // ALL, BLOCKED, WHITELISTED
@@ -96,6 +97,44 @@ fun AppBlockerScreen(
             .padding(horizontal = 16.dp)
     ) {
         Spacer(modifier = Modifier.height(8.dp))
+
+        // Lock Banner when session is strictly locked
+        if (isModificationLocked) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 10.dp),
+                color = CoralStrict.copy(alpha = 0.15f),
+                shape = RoundedCornerShape(14.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, CoralStrict.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Shield,
+                        contentDescription = null,
+                        tint = CoralStrict,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Shield Configuration Locked",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = CoralStrict
+                        )
+                        Text(
+                            text = "Focus session is active! Blocked apps and whitelist cannot be altered until timer ends.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+        }
 
         // Tabs Header
         TabRow(
@@ -184,7 +223,8 @@ fun AppBlockerScreen(
                             }
                             Switch(
                                 checked = isShortsBlockerEnabled,
-                                onCheckedChange = { viewModel.toggleShortsBlocker(it) },
+                                onCheckedChange = { if (!isModificationLocked) viewModel.toggleShortsBlocker(it) },
+                                enabled = !isModificationLocked,
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = VioletNeon,
                                     checkedTrackColor = VioletNeon.copy(alpha = 0.3f)
@@ -294,6 +334,7 @@ fun AppBlockerScreen(
                         items(displayedApps, key = { it.packageName }) { app ->
                             AppItemRow(
                                 app = app,
+                                enabled = !isModificationLocked,
                                 onToggleBlock = { blocked ->
                                     viewModel.toggleAppBlock(app.packageName, app.appName, app.isBlocked)
                                 },
@@ -343,7 +384,8 @@ fun AppBlockerScreen(
                             }
                             Switch(
                                 checked = isWebBlockerEnabled,
-                                onCheckedChange = { viewModel.toggleWebBlocker(it) },
+                                onCheckedChange = { if (!isModificationLocked) viewModel.toggleWebBlocker(it) },
+                                enabled = !isModificationLocked,
                                 colors = SwitchDefaults.colors(checkedThumbColor = CyanNeon),
                                 modifier = Modifier.scale(0.85f)
                             )
@@ -353,14 +395,15 @@ fun AppBlockerScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Button(
-                        onClick = { showAddWebsiteDialog = true },
+                        onClick = { if (!isModificationLocked) showAddWebsiteDialog = true },
+                        enabled = !isModificationLocked,
                         colors = ButtonDefaults.buttonColors(containerColor = CyanNeon, contentColor = Color(0xFF00242B)),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Add Blocked Website URL", fontWeight = FontWeight.Bold)
+                        Text(if (isModificationLocked) "🔒 Locked in Session" else "Add Blocked Website URL", fontWeight = FontWeight.Bold)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -398,18 +441,20 @@ fun AppBlockerScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Switch(
                                 checked = site.isEnabled,
-                                onCheckedChange = { viewModel.toggleWebsite(site.id, it) },
+                                onCheckedChange = { if (!isModificationLocked) viewModel.toggleWebsite(site.id, it) },
+                                enabled = !isModificationLocked,
                                 modifier = Modifier.scale(0.85f)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             IconButton(
-                                onClick = { viewModel.deleteWebsite(site.id) },
+                                onClick = { if (!isModificationLocked) viewModel.deleteWebsite(site.id) },
+                                enabled = !isModificationLocked,
                                 modifier = Modifier.size(32.dp)
                             ) {
                                 Icon(
                                     Icons.Default.Delete,
                                     contentDescription = "Delete",
-                                    tint = Color(0xFF94A3B8),
+                                    tint = if (isModificationLocked) Color(0xFF475569) else Color(0xFF94A3B8),
                                     modifier = Modifier.size(18.dp)
                                 )
                             }

@@ -71,6 +71,51 @@ class PreferencesRepository(context: Context) {
         _isOnboardingDone.value = done
     }
 
+    fun saveActiveSession(
+        startTimeMillis: Long,
+        targetEndTimeMillis: Long,
+        mode: String,
+        label: String,
+        isStrict: Boolean,
+        sound: String
+    ) {
+        prefs.edit()
+            .putBoolean(KEY_SESSION_RUNNING, true)
+            .putLong(KEY_SESSION_START_TIME, startTimeMillis)
+            .putLong(KEY_SESSION_TARGET_END_TIME, targetEndTimeMillis)
+            .putString(KEY_SESSION_MODE, mode)
+            .putString(KEY_SESSION_LABEL, label)
+            .putBoolean(KEY_SESSION_IS_STRICT, isStrict)
+            .putString(KEY_SESSION_SOUND, sound)
+            .apply()
+    }
+
+    fun clearActiveSession() {
+        prefs.edit()
+            .putBoolean(KEY_SESSION_RUNNING, false)
+            .remove(KEY_SESSION_START_TIME)
+            .remove(KEY_SESSION_TARGET_END_TIME)
+            .remove(KEY_SESSION_MODE)
+            .remove(KEY_SESSION_LABEL)
+            .remove(KEY_SESSION_IS_STRICT)
+            .remove(KEY_SESSION_SOUND)
+            .apply()
+    }
+
+    fun getActiveSession(): SavedSession? {
+        if (!prefs.getBoolean(KEY_SESSION_RUNNING, false)) return null
+        val targetEndTime = prefs.getLong(KEY_SESSION_TARGET_END_TIME, 0L)
+        if (targetEndTime <= 0L) return null
+        return SavedSession(
+            startTimeMillis = prefs.getLong(KEY_SESSION_START_TIME, 0L),
+            targetEndTimeMillis = targetEndTime,
+            mode = prefs.getString(KEY_SESSION_MODE, FocusMode.TIMER.name) ?: FocusMode.TIMER.name,
+            label = prefs.getString(KEY_SESSION_LABEL, "Deep Focus") ?: "Deep Focus",
+            isStrict = prefs.getBoolean(KEY_SESSION_IS_STRICT, false),
+            sound = prefs.getString(KEY_SESSION_SOUND, AmbientSound.NONE.name) ?: AmbientSound.NONE.name
+        )
+    }
+
     fun recordSessionSuccess() {
         val todayStr = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())
         val lastDate = prefs.getString(KEY_LAST_STREAK_DATE, "")
@@ -98,5 +143,23 @@ class PreferencesRepository(context: Context) {
         private const val KEY_STREAK = "key_current_streak"
         private const val KEY_LAST_STREAK_DATE = "key_last_streak_date"
         private const val KEY_ONBOARDING_DONE = "key_onboarding_done"
+
+        private const val KEY_SESSION_RUNNING = "key_session_running"
+        private const val KEY_SESSION_START_TIME = "key_session_start_time"
+        private const val KEY_SESSION_TARGET_END_TIME = "key_session_target_end_time"
+        private const val KEY_SESSION_MODE = "key_session_mode"
+        private const val KEY_SESSION_LABEL = "key_session_label"
+        private const val KEY_SESSION_IS_STRICT = "key_session_is_strict"
+        private const val KEY_SESSION_SOUND = "key_session_sound"
     }
 }
+
+data class SavedSession(
+    val startTimeMillis: Long,
+    val targetEndTimeMillis: Long,
+    val mode: String,
+    val label: String,
+    val isStrict: Boolean,
+    val sound: String
+)
+

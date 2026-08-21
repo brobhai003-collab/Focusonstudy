@@ -98,10 +98,10 @@ fun OnboardingDialog(
     }
 
     AlertDialog(
-        onDismissRequest = { /* Strictly non-dismissable until all mandatory permissions are granted */ },
+        onDismissRequest = onComplete,
         properties = DialogProperties(
-            dismissOnBackPress = false,
-            dismissOnClickOutside = false
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
         ),
         title = null,
         text = {
@@ -138,7 +138,7 @@ fun OnboardingDialog(
                                 icon = Icons.Default.Accessibility,
                                 iconColor = VioletNeon,
                                 title = "1. Enable Focus Engine",
-                                subtitle = "MANDATORY STEP 1 OF 3",
+                                subtitle = "STEP 1 OF 3",
                                 description = "Dedication requires Accessibility Service to detect when distracting apps (e.g. Facebook, Instagram, YouTube) or short-form reels are opened.",
                                 actionText = "Open Accessibility Settings",
                                 buttonTestTag = "open_accessibility_settings_button",
@@ -154,7 +154,8 @@ fun OnboardingDialog(
                                         }
                                         context.startActivity(fallbackIntent)
                                     }
-                                }
+                                },
+                                onSkip = onComplete
                             )
                         }
                         2 -> {
@@ -163,7 +164,7 @@ fun OnboardingDialog(
                                 icon = Icons.Default.QueryStats,
                                 iconColor = CyanNeon,
                                 title = "2. Grant Usage Access",
-                                subtitle = "MANDATORY STEP 2 OF 3",
+                                subtitle = "STEP 2 OF 3",
                                 description = "Allows Dedication to accurately calculate your daily screen time, productive minutes, and verify task completion quests.",
                                 actionText = "Grant Usage Access",
                                 buttonTestTag = "grant_usage_access_button",
@@ -179,7 +180,8 @@ fun OnboardingDialog(
                                         }
                                         context.startActivity(fallbackIntent)
                                     }
-                                }
+                                },
+                                onSkip = onComplete
                             )
                         }
                         3 -> {
@@ -188,7 +190,7 @@ fun OnboardingDialog(
                                 icon = Icons.Default.Layers,
                                 iconColor = AmberWarning,
                                 title = "3. Allow Shield Overlay",
-                                subtitle = "FINAL MANDATORY STEP 3 OF 3",
+                                subtitle = "STEP 3 OF 3",
                                 description = "Enables Dedication to display the full-screen Focus Shield over distracting apps during active focus sessions.",
                                 actionText = "Allow Display Overlay",
                                 buttonTestTag = "grant_overlay_permission_button",
@@ -209,7 +211,8 @@ fun OnboardingDialog(
                                             context.startActivity(fallbackIntent)
                                         }
                                     }
-                                }
+                                },
+                                onSkip = onComplete
                             )
                         }
                         else -> {
@@ -294,7 +297,8 @@ private fun PermissionStepContent(
     description: String,
     actionText: String,
     buttonTestTag: String,
-    onActionClick: () -> Unit
+    onActionClick: () -> Unit,
+    onSkip: () -> Unit
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -357,6 +361,19 @@ private fun PermissionStepContent(
             Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
             Spacer(modifier = Modifier.width(8.dp))
             Text(actionText, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        androidx.compose.material3.OutlinedButton(
+            onClick = onSkip,
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF475569)),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = CyanNeon),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .testTag("skip_permission_onboarding_button")
+        ) {
+            Text("Explore App / Skip for Now", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(

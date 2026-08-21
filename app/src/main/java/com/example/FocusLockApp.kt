@@ -40,6 +40,29 @@ class FocusLockApp : Application() {
                 } catch (e: Exception) {
                     android.util.Log.w("FocusLockApp", "Default websites seed skipped: ${e.message}")
                 }
+
+                // Check if an active session needs to be resumed on process restart
+                try {
+                    val saved = preferencesRepository.getActiveSession()
+                    if (saved != null && !com.example.service.FocusTimerService.isSessionActive.value) {
+                        val now = System.currentTimeMillis()
+                        if (saved.targetEndTimeMillis > now) {
+                            val remaining = ((saved.targetEndTimeMillis - now) / 1000L).coerceAtLeast(10L)
+                            val mode = try { com.example.data.model.FocusMode.valueOf(saved.mode) } catch (e: Exception) { com.example.data.model.FocusMode.TIMER }
+                            val sound = try { com.example.data.model.AmbientSound.valueOf(saved.sound) } catch (e: Exception) { com.example.data.model.AmbientSound.NONE }
+                            com.example.service.FocusTimerService.start(
+                                context = this@FocusLockApp,
+                                mode = mode,
+                                durationSeconds = remaining,
+                                label = saved.label,
+                                isStrict = saved.isStrict,
+                                sound = sound
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("FocusLockApp", "Session auto-resume check error: ${e.message}")
+                }
             }
 
             createNotificationChannels()
