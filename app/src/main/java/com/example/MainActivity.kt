@@ -47,6 +47,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -62,9 +63,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.screens.AppBlockerScreen
 import com.example.ui.screens.AuthDialog
+import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.InsightsAndSettingsScreen
 import com.example.ui.screens.OnboardingDialog
 import com.example.ui.screens.PremiumPaywallDialog
@@ -109,6 +114,11 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        focusViewModel.refreshPermissions()
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -137,8 +147,29 @@ fun FocusLockMainApp(
     val hasAccessibility by focusViewModel.hasAccessibility.collectAsStateWithLifecycle()
     val hasUsageStats by focusViewModel.hasUsageStats.collectAsStateWithLifecycle()
     val hasOverlay by focusViewModel.hasOverlay.collectAsStateWithLifecycle()
+    val hasDeviceAdmin by focusViewModel.hasDeviceAdmin.collectAsStateWithLifecycle()
 
-    val showOnboarding = !isOnboardingDone || !hasAccessibility || !hasUsageStats || !hasOverlay
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                focusViewModel.refreshPermissions()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // 1. Mandatory Auth First Gate: If user is not logged in / registered, show AuthScreen
+    if (currentUser == null) {
+        AuthScreen(viewModel = focusViewModel)
+        return
+    }
+
+    // 2. Mandatory Permission Gate: If any permission was turned off from settings or not yet granted, block and show setup
+    val showOnboarding = !isOnboardingDone || !hasAccessibility || !hasUsageStats || !hasOverlay || !hasDeviceAdmin
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),

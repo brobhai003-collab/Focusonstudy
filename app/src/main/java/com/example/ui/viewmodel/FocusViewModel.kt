@@ -142,8 +142,11 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     private val _hasOverlay = MutableStateFlow(false)
     val hasOverlay: StateFlow<Boolean> = _hasOverlay.asStateFlow()
 
-    val hasAllRequiredPermissions: StateFlow<Boolean> = combine(_hasAccessibility, _hasUsageStats, _hasOverlay) { a, u, o ->
-        a && u && o
+    private val _hasDeviceAdmin = MutableStateFlow(false)
+    val hasDeviceAdmin: StateFlow<Boolean> = _hasDeviceAdmin.asStateFlow()
+
+    val hasAllRequiredPermissions: StateFlow<Boolean> = combine(_hasAccessibility, _hasUsageStats, _hasOverlay, _hasDeviceAdmin) { a, u, o, d ->
+        a && u && o && d
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     init {
@@ -416,6 +419,7 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
         _hasAccessibility.value = hasAccessibilityPermission()
         _hasUsageStats.value = hasUsageStatsPermission()
         _hasOverlay.value = hasOverlayPermission()
+        _hasDeviceAdmin.value = isDeviceAdminActive()
     }
 
     // Permissions Helper Checks
@@ -440,7 +444,7 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun hasAllRequiredPermissions(): Boolean {
-        return hasAccessibilityPermission() && hasUsageStatsPermission() && hasOverlayPermission()
+        return hasAccessibilityPermission() && hasUsageStatsPermission() && hasOverlayPermission() && isDeviceAdminActive()
     }
 
     fun isDeviceAdminActive(): Boolean {

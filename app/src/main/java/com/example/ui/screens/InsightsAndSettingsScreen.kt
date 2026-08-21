@@ -541,9 +541,22 @@ fun InsightsAndSettingsScreen(
                             val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
                                 putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, compName)
                                 putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Dedication uses Device Administrator to prevent unauthorized uninstallation during active strict sessions.")
-                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
                             }
-                            context.startActivity(intent)
+                            try {
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                try {
+                                    val fallbackIntent = Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    }
+                                    context.startActivity(fallbackIntent)
+                                } catch (e2: Exception) {
+                                    val settingsIntent = Intent(Settings.ACTION_SETTINGS).apply {
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    }
+                                    context.startActivity(settingsIntent)
+                                }
+                            }
                         }
                     )
                 }
