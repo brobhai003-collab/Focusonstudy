@@ -87,7 +87,7 @@
 
         <!-- Device Admin Receiver for Strict Mode Protection -->
         <receiver
-            android:name=".service.FocusDeviceAdminReceiver"
+            android:name="com.example.service.FocusDeviceAdminReceiver"
             android:description="@string/device_admin_description"
             android:exported="true"
             android:label="@string/app_name"

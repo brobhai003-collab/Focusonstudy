@@ -311,23 +311,43 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
 
     fun requestDeviceAdminPermission(context: Context) {
         val compName = ComponentName(context, FocusDeviceAdminReceiver::class.java)
+        android.util.Log.d("FocusViewModel", "Requesting Device Admin for component: ${compName.flattenToString()}")
+        
         val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
             putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, compName)
             putExtra(
                 DevicePolicyManager.EXTRA_ADD_EXPLANATION,
                 "Dedication uses Device Administrator to prevent unauthorized uninstallation or bypassing while Strict Mode focus is active."
             )
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
+        
+        // Find Activity if available from Context
+        var currentContext = context
+        var activity: android.app.Activity? = null
+        while (currentContext is android.content.ContextWrapper) {
+            if (currentContext is android.app.Activity) {
+                activity = currentContext
+                break
+            }
+            currentContext = currentContext.baseContext
+        }
+
         try {
-            context.startActivity(intent)
+            if (activity != null) {
+                activity.startActivity(intent)
+            } else {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            }
         } catch (e: Exception) {
+            android.util.Log.e("FocusViewModel", "Failed to launch ACTION_ADD_DEVICE_ADMIN directly", e)
             try {
                 val fallbackIntent = Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(fallbackIntent)
             } catch (e2: Exception) {
+                android.util.Log.e("FocusViewModel", "Failed to launch ACTION_SECURITY_SETTINGS", e2)
                 val settingsIntent = Intent(Settings.ACTION_SETTINGS).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
