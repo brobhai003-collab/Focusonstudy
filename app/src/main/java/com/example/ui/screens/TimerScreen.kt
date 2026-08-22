@@ -102,6 +102,7 @@ fun TimerScreen(
     val context = LocalContext.current
     var showAmbientDialog by remember { mutableStateOf(false) }
     var showGiveUpConfirmDialog by remember { mutableStateOf(false) }
+    var showDeviceAdminDialog by remember { mutableStateOf(false) }
 
     val blockedCount = blockedApps.count { it.isBlocked }
 
@@ -323,8 +324,15 @@ fun TimerScreen(
                         .weight(1f)
                         .clip(RoundedCornerShape(14.dp))
                         .clickable(enabled = !isSessionActive) {
-                            if (!isProUser) onNavigateToPro()
-                            else viewModel.toggleStrictMode(!isStrictMode, context)
+                            if (!isStrictMode && !viewModel.isDeviceAdminActive()) {
+                                showDeviceAdminDialog = true
+                            } else {
+                                viewModel.toggleStrictMode(
+                                    enabled = !isStrictMode,
+                                    context = context,
+                                    onAdminRequired = { showDeviceAdminDialog = true }
+                                )
+                            }
                         }
                         .testTag("strict_mode_button"),
                     color = if (isStrictMode) CoralStrict.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
@@ -338,7 +346,7 @@ fun TimerScreen(
                         Icon(
                             Icons.Default.Lock,
                             contentDescription = null,
-                            tint = if (isStrictMode) CoralStrict else if (!isProUser) AmberWarning else Color(0xFF64748B),
+                            tint = if (isStrictMode) CoralStrict else Color(0xFF64748B),
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -349,10 +357,7 @@ fun TimerScreen(
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                if (!isProUser) {
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("PRO", fontSize = 9.sp, color = AmberWarning, fontWeight = FontWeight.Black)
-                                } else if (isSessionActive) {
+                                if (isSessionActive) {
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text("LOCKED", fontSize = 8.sp, color = CoralStrict, fontWeight = FontWeight.Black)
                                 }
@@ -379,7 +384,7 @@ fun TimerScreen(
                 Button(
                     onClick = {
                         if (isStrictMode && !viewModel.isDeviceAdminActive()) {
-                            viewModel.requestDeviceAdminPermission(context)
+                            showDeviceAdminDialog = true
                         } else {
                             viewModel.startFocusSession()
                         }
@@ -600,6 +605,17 @@ fun TimerScreen(
                 ) {
                     Text("Keep Focusing", fontWeight = FontWeight.SemiBold)
                 }
+            }
+        )
+    }
+
+    if (showDeviceAdminDialog) {
+        DeviceAdminDialog(
+            viewModel = viewModel,
+            onDismiss = { showDeviceAdminDialog = false },
+            onActivated = {
+                showDeviceAdminDialog = false
+                viewModel.toggleStrictMode(true)
             }
         )
     }

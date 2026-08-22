@@ -110,6 +110,7 @@ fun InsightsAndSettingsScreen(
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
 
     var showAuthDialog by remember { mutableStateOf(false) }
+    var showDeviceAdminDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -455,8 +456,15 @@ fun InsightsAndSettingsScreen(
                             Switch(
                                 checked = isStrictMode,
                                 onCheckedChange = { enabled ->
-                                    if (!isProUser) onNavigateToPro()
-                                    else viewModel.toggleStrictMode(enabled, context)
+                                    if (enabled && !viewModel.isDeviceAdminActive()) {
+                                        showDeviceAdminDialog = true
+                                    } else {
+                                        viewModel.toggleStrictMode(
+                                            enabled = enabled,
+                                            context = context,
+                                            onAdminRequired = { showDeviceAdminDialog = true }
+                                        )
+                                    }
                                 },
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = Color.White,
@@ -537,26 +545,7 @@ fun InsightsAndSettingsScreen(
                         desc = "Guarantees uninstall protection while Strict Mode focus is running.",
                         isGranted = isAdmin,
                         onGrantClick = {
-                            val compName = ComponentName(context, FocusDeviceAdminReceiver::class.java)
-                            val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
-                                putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, compName)
-                                putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Dedication uses Device Administrator to prevent unauthorized uninstallation during active strict sessions.")
-                            }
-                            try {
-                                context.startActivity(intent)
-                            } catch (e: Exception) {
-                                try {
-                                    val fallbackIntent = Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                    }
-                                    context.startActivity(fallbackIntent)
-                                } catch (e2: Exception) {
-                                    val settingsIntent = Intent(Settings.ACTION_SETTINGS).apply {
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                    }
-                                    context.startActivity(settingsIntent)
-                                }
-                            }
+                            showDeviceAdminDialog = true
                         }
                     )
                 }
@@ -566,6 +555,17 @@ fun InsightsAndSettingsScreen(
                 }
             }
         }
+    }
+
+    if (showDeviceAdminDialog) {
+        DeviceAdminDialog(
+            viewModel = viewModel,
+            onDismiss = { showDeviceAdminDialog = false },
+            onActivated = {
+                showDeviceAdminDialog = false
+                viewModel.toggleStrictMode(true)
+            }
+        )
     }
 
     if (showAuthDialog) {

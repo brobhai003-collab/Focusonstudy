@@ -41,6 +41,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -263,9 +264,26 @@ fun OnboardingDialog(
                                         PermissionStatusItem(text = "Accessibility Focus Engine Active", isGranted = true)
                                         PermissionStatusItem(text = "Usage & Screen Time Tracker Active", isGranted = true)
                                         PermissionStatusItem(text = "Focus Shield Overlay Active", isGranted = true)
+                                        val isAdmin = viewModel.isDeviceAdminActive()
+                                        PermissionStatusItem(
+                                            text = if (isAdmin) "Device Admin (Uninstall Shield) Active" else "Device Admin (Anti-Uninstall) Ready",
+                                            isGranted = isAdmin
+                                        )
                                     }
                                 }
-                                Spacer(modifier = Modifier.height(20.dp))
+                                if (!viewModel.isDeviceAdminActive()) {
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    OutlinedButton(
+                                        onClick = { viewModel.requestDeviceAdminPermission(context) },
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Icon(Icons.Default.Security, contentDescription = null, tint = CoralStrict, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("ARM ANTI-UNINSTALL SHIELD", color = CoralStrict, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
                                 Button(
                                     onClick = onComplete,
                                     colors = ButtonDefaults.buttonColors(

@@ -289,17 +289,13 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
             // FORBIDDEN: Cannot toggle Strict Mode during an active session!
             return
         }
-        if (enabled && !prefsRepo.isProUser.value) {
-            prefsRepo.setStrictMode(false)
-            return
-        }
         if (enabled) {
             if (!isDeviceAdminActive()) {
                 // Device Admin is required before Strict Mode can be armed
+                onAdminRequired?.invoke()
                 if (context != null) {
                     requestDeviceAdminPermission(context)
                 }
-                onAdminRequired?.invoke()
                 prefsRepo.setStrictMode(false)
                 return
             }
@@ -317,19 +313,19 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
                 DevicePolicyManager.EXTRA_ADD_EXPLANATION,
                 "Dedication uses Device Administrator to prevent unauthorized uninstallation or bypassing while Strict Mode focus is active."
             )
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         try {
             context.startActivity(intent)
         } catch (e: Exception) {
             try {
                 val fallbackIntent = Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(fallbackIntent)
             } catch (e2: Exception) {
                 val settingsIntent = Intent(Settings.ACTION_SETTINGS).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(settingsIntent)
             }
