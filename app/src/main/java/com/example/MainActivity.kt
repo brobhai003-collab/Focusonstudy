@@ -169,7 +169,7 @@ fun FocusLockMainApp(
     }
 
     // 2. Mandatory Permission Gate: If any core permission was turned off from settings or not yet granted, block and show setup
-    val showOnboarding = !isOnboardingDone || !hasAccessibility || !hasUsageStats || !hasOverlay
+    val showOnboarding = !isOnboardingDone || !hasAccessibility || !hasUsageStats || !hasOverlay || !hasDeviceAdmin
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),

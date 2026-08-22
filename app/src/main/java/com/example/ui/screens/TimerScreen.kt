@@ -324,7 +324,9 @@ fun TimerScreen(
                         .weight(1f)
                         .clip(RoundedCornerShape(14.dp))
                         .clickable(enabled = !isSessionActive) {
-                            if (!isStrictMode && !viewModel.isDeviceAdminActive()) {
+                            if (!isProUser) {
+                                onNavigateToPro()
+                            } else if (!isStrictMode && !viewModel.isDeviceAdminActive()) {
                                 showDeviceAdminDialog = true
                             } else {
                                 viewModel.toggleStrictMode(
@@ -346,7 +348,7 @@ fun TimerScreen(
                         Icon(
                             Icons.Default.Lock,
                             contentDescription = null,
-                            tint = if (isStrictMode) CoralStrict else Color(0xFF64748B),
+                            tint = if (isStrictMode) CoralStrict else if (!isProUser) AmberWarning else Color(0xFF64748B),
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -357,7 +359,10 @@ fun TimerScreen(
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                if (isSessionActive) {
+                                if (!isProUser) {
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("PRO", fontSize = 9.sp, color = AmberWarning, fontWeight = FontWeight.Black)
+                                } else if (isSessionActive) {
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text("LOCKED", fontSize = 8.sp, color = CoralStrict, fontWeight = FontWeight.Black)
                                 }
@@ -365,10 +370,10 @@ fun TimerScreen(
                             Text(
                                 text = if (isSessionActive) {
                                     if (isStrictMode) "Locked ON" else "Locked OFF"
-                                } else if (isStrictMode) "Armed ON" else "Off (Tap)",
+                                } else if (isStrictMode) "Armed ON" else if (!isProUser) "PRO Feature" else "Off (Tap)",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isStrictMode) CoralStrict else MaterialTheme.colorScheme.onSurface,
+                                color = if (isStrictMode) CoralStrict else if (!isProUser) AmberWarning else MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
@@ -404,98 +409,48 @@ fun TimerScreen(
                     Text("START FOCUS SESSION", fontWeight = FontWeight.Black, fontSize = 16.sp, letterSpacing = 1.sp)
                 }
             } else {
-                if (isStrictMode) {
-                    // Strict Mode Enforced Banner & Completely Locked Controls (Only when Strict Mode is ON)
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("strict_mode_locked_banner"),
-                        colors = CardDefaults.cardColors(
-                            containerColor = CoralStrict.copy(alpha = 0.12f)
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(1.5.dp, CoralStrict),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(46.dp)
-                                    .clip(CircleShape)
-                                    .background(CoralStrict.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    Icons.Default.Lock,
-                                    contentDescription = "Strict Mode Enforced",
-                                    tint = CoralStrict,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(14.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Strict Mode Active",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = CoralStrict
-                                )
-                                Text(
-                                    text = "Strict Mode is ON. Timer cannot be paused or stopped until the session finishes.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    // Normal Mode: User has full continuous access to Pause, Resume, and Stop/Give Up anytime
+                // Focus Active State: No Pause, No Give Up - Pure Locked-in Dedication!
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("active_focus_locked_banner"),
+                    colors = CardDefaults.cardColors(
+                        containerColor = (if (isStrictMode) CoralStrict else VioletNeon).copy(alpha = 0.12f)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, if (isStrictMode) CoralStrict else VioletNeon),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Pause / Resume
-                        Button(
-                            onClick = {
-                                if (isPaused) viewModel.resumeFocusSession()
-                                else viewModel.pauseFocusSession()
-                            },
+                        Box(
                             modifier = Modifier
-                                .weight(1f)
-                                .height(54.dp)
-                                .testTag("pause_resume_button"),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = VioletNeon,
-                                contentColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(16.dp)
+                                .size(46.dp)
+                                .clip(CircleShape)
+                                .background((if (isStrictMode) CoralStrict else VioletNeon).copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
-                                contentDescription = null
+                                Icons.Default.Lock,
+                                contentDescription = "Focus Session Locked",
+                                tint = if (isStrictMode) CoralStrict else VioletNeon,
+                                modifier = Modifier.size(24.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(if (isPaused) "Resume" else "Pause", fontWeight = FontWeight.Bold)
                         }
-
-                        // Stop / Give Up Button
-                        OutlinedButton(
-                            onClick = { showGiveUpConfirmDialog = true },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(54.dp)
-                                .testTag("stop_focus_button"),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = CoralStrict
-                            ),
-                            border = androidx.compose.foundation.BorderStroke(1.5.dp, CoralStrict),
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Icon(Icons.Default.Stop, contentDescription = null, tint = CoralStrict)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Stop / Give Up", fontWeight = FontWeight.Bold, color = CoralStrict)
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (isStrictMode) "Strict Mode Active" else "Focus Session in Progress",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isStrictMode) CoralStrict else VioletNeon
+                            )
+                            Text(
+                                text = "Focus locked. No pausing or giving up until the session completes.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
                 }

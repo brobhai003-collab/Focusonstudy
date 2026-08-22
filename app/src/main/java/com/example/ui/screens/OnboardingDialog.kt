@@ -82,6 +82,7 @@ fun OnboardingDialog(
     val hasAccessibility by viewModel.hasAccessibility.collectAsStateWithLifecycle()
     val hasUsage by viewModel.hasUsageStats.collectAsStateWithLifecycle()
     val hasOverlay by viewModel.hasOverlay.collectAsStateWithLifecycle()
+    val hasDeviceAdmin by viewModel.hasDeviceAdmin.collectAsStateWithLifecycle()
 
     // OnResume lifecycle listener to immediately detect permissions when user returns from Android Settings
     DisposableEffect(lifecycleOwner) {
@@ -100,7 +101,8 @@ fun OnboardingDialog(
         !hasAccessibility -> 1
         !hasUsage -> 2
         !hasOverlay -> 3
-        else -> 4 // All 3 mandatory permissions granted!
+        !hasDeviceAdmin -> 4
+        else -> 5 // All 4 mandatory permissions granted!
     }
 
     AlertDialog(
@@ -119,7 +121,7 @@ fun OnboardingDialog(
                     .padding(vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Step Progress Indicator (1 - 2 - 3)
+                // Step Progress Indicator (1 - 2 - 3 - 4)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -132,6 +134,8 @@ fun OnboardingDialog(
                     StepBadge(stepNumber = 2, isActive = currentStep == 2, isCompleted = hasUsage, label = "Usage")
                     StepDivider(isCompleted = hasUsage)
                     StepBadge(stepNumber = 3, isActive = currentStep == 3, isCompleted = hasOverlay, label = "Overlay")
+                    StepDivider(isCompleted = hasOverlay)
+                    StepBadge(stepNumber = 4, isActive = currentStep == 4, isCompleted = hasDeviceAdmin, label = "Admin")
                 }
 
                 AnimatedContent(
@@ -146,7 +150,7 @@ fun OnboardingDialog(
                                 icon = Icons.Default.Accessibility,
                                 iconColor = VioletNeon,
                                 title = "1. Enable Focus Engine",
-                                subtitle = "MANDATORY STEP 1 OF 3",
+                                subtitle = "MANDATORY STEP 1 OF 4",
                                 description = "Dedication requires Accessibility Service to detect when distracting apps (e.g. Instagram, YouTube Shorts, Games) or blocked websites are opened.",
                                 actionText = "Open Accessibility Settings",
                                 buttonTestTag = "open_accessibility_settings_button",
@@ -171,7 +175,7 @@ fun OnboardingDialog(
                                 icon = Icons.Default.QueryStats,
                                 iconColor = CyanNeon,
                                 title = "2. Grant Usage Access",
-                                subtitle = "MANDATORY STEP 2 OF 3",
+                                subtitle = "MANDATORY STEP 2 OF 4",
                                 description = "Allows Dedication to accurately calculate your daily screen time, productive focus minutes, and app usage limits.",
                                 actionText = "Grant Usage Access",
                                 buttonTestTag = "grant_usage_access_button",
@@ -196,7 +200,7 @@ fun OnboardingDialog(
                                 icon = Icons.Default.Layers,
                                 iconColor = AmberWarning,
                                 title = "3. Allow Shield Overlay",
-                                subtitle = "MANDATORY STEP 3 OF 3",
+                                subtitle = "MANDATORY STEP 3 OF 4",
                                 description = "Enables Dedication to display the full-screen Focus Shield instantly over distracting apps during active focus sessions.",
                                 actionText = "Allow Display Overlay",
                                 buttonTestTag = "grant_overlay_permission_button",
@@ -220,8 +224,23 @@ fun OnboardingDialog(
                                 }
                             )
                         }
+                        4 -> {
+                            // STEP 4: Device Administrator / Anti-Uninstall Shield (Mandatory)
+                            PermissionStepContent(
+                                icon = Icons.Default.AdminPanelSettings,
+                                iconColor = CoralStrict,
+                                title = "4. Anti-Uninstall Shield",
+                                subtitle = "MANDATORY STEP 4 OF 4",
+                                description = "Dedication uses Device Administrator authorization to prevent uninstallation, force-stopping, or bypassing while focus sessions are active.",
+                                actionText = "Activate Anti-Uninstall Shield",
+                                buttonTestTag = "activate_admin_permission_button",
+                                onActionClick = {
+                                    viewModel.requestDeviceAdminPermission(context)
+                                }
+                            )
+                        }
                         else -> {
-                            // ALL 3 PERMISSIONS GRANTED!
+                            // ALL 4 PERMISSIONS GRANTED!
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.fillMaxWidth()
@@ -249,7 +268,7 @@ fun OnboardingDialog(
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
-                                    text = "Core security protocols are active. You can now start focusing.",
+                                    text = "Core security protocols & Anti-Uninstall shields are active. You can now start focusing.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center
@@ -264,26 +283,10 @@ fun OnboardingDialog(
                                         PermissionStatusItem(text = "Accessibility Focus Engine Active", isGranted = true)
                                         PermissionStatusItem(text = "Usage & Screen Time Tracker Active", isGranted = true)
                                         PermissionStatusItem(text = "Focus Shield Overlay Active", isGranted = true)
-                                        val isAdmin = viewModel.isDeviceAdminActive()
-                                        PermissionStatusItem(
-                                            text = if (isAdmin) "Device Admin (Uninstall Shield) Active" else "Device Admin (Anti-Uninstall) Ready",
-                                            isGranted = isAdmin
-                                        )
+                                        PermissionStatusItem(text = "Device Admin (Anti-Uninstall) Active", isGranted = true)
                                     }
                                 }
-                                if (!viewModel.isDeviceAdminActive()) {
-                                    Spacer(modifier = Modifier.height(10.dp))
-                                    OutlinedButton(
-                                        onClick = { viewModel.requestDeviceAdminPermission(context) },
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Icon(Icons.Default.Security, contentDescription = null, tint = CoralStrict, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("ARM ANTI-UNINSTALL SHIELD", color = CoralStrict, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(16.dp))
+                                Spacer(modifier = Modifier.height(20.dp))
                                 Button(
                                     onClick = onComplete,
                                     colors = ButtonDefaults.buttonColors(

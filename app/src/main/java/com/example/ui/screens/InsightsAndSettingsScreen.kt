@@ -438,13 +438,30 @@ fun InsightsAndSettingsScreen(
                             Column(
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text(
-                                    text = "Strict Mode (Uninstall Protection)",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 2,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Strict Mode (Uninstall Protection)",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 2,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                    if (!isProUser) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(
+                                            color = AmberWarning.copy(alpha = 0.2f),
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "PRO",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = AmberWarning,
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "Prevents deleting app or split-screen bypass",
@@ -456,7 +473,9 @@ fun InsightsAndSettingsScreen(
                             Switch(
                                 checked = isStrictMode,
                                 onCheckedChange = { enabled ->
-                                    if (enabled && !viewModel.isDeviceAdminActive()) {
+                                    if (!isProUser) {
+                                        onNavigateToPro()
+                                    } else if (enabled && !viewModel.isDeviceAdminActive()) {
                                         showDeviceAdminDialog = true
                                     } else {
                                         viewModel.toggleStrictMode(

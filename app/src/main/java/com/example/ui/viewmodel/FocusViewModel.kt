@@ -289,6 +289,10 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
             // FORBIDDEN: Cannot toggle Strict Mode during an active session!
             return
         }
+        if (enabled && !prefsRepo.isProUser.value) {
+            prefsRepo.setStrictMode(false)
+            return
+        }
         if (enabled) {
             if (!isDeviceAdminActive()) {
                 // Device Admin is required before Strict Mode can be armed
