@@ -67,10 +67,9 @@ import com.example.ui.theme.AmberWarning
 import com.example.ui.theme.CyanNeon
 import com.example.ui.theme.EmeraldSuccess
 import com.example.ui.theme.VioletNeon
+import com.example.FocusLockApp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-private const val EXACT_TEST_ACCESS_CODE = "DEDICATIONPRO"
 
 @Composable
 fun PremiumPaywallDialog(
@@ -81,16 +80,29 @@ fun PremiumPaywallDialog(
     val coroutineScope = rememberCoroutineScope()
     var accessCodeInput by remember { mutableStateOf("") }
     var codeError by remember { mutableStateOf<String?>(null) }
+    var isRedeemingCode by remember { mutableStateOf(false) }
     var showPaymentSheet by remember { mutableStateOf(false) }
     var isProcessingPayment by remember { mutableStateOf(false) }
     var paymentCompleted by remember { mutableStateOf(false) }
 
-    // Instant unlock strictly when exact access code is entered (No spaces, exact capital letters)
-    fun validateAndUnlockCode(code: String) {
-        if (code == EXACT_TEST_ACCESS_CODE) {
-            codeError = null
-            onUpgrade(true)
-            onDismiss()
+    fun submitPromoCode(code: String) {
+        val trimmed = code.trim().uppercase()
+        if (trimmed.isEmpty()) {
+            codeError = "Please enter an access code"
+            return
+        }
+        isRedeemingCode = true
+        codeError = null
+        coroutineScope.launch {
+            val result = FocusLockApp.instance.authRepository.redeemPromoCode(trimmed)
+            isRedeemingCode = false
+            if (result.isSuccess) {
+                codeError = null
+                onUpgrade(true)
+                onDismiss()
+            } else {
+                codeError = result.exceptionOrNull()?.message ?: "Invalid or already used code"
+            }
         }
     }
 
@@ -449,54 +461,83 @@ fun PremiumPaywallDialog(
 
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            OutlinedTextField(
-                                value = accessCodeInput,
-                                onValueChange = { input ->
-                                    accessCodeInput = input
-                                    codeError = null
-                                    validateAndUnlockCode(input)
-                                },
-                                placeholder = {
-                                    Text(
-                                        "Enter access code",
-                                        fontSize = 12.sp,
-                                        color = Color(0xFF64748B)
-                                    )
-                                },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(
-                                    capitalization = KeyboardCapitalization.Characters,
-                                    imeAction = ImeAction.Done
-                                ),
-                                keyboardActions = KeyboardActions(
-                                    onDone = {
-                                        if (accessCodeInput == EXACT_TEST_ACCESS_CODE) {
-                                            validateAndUnlockCode(accessCodeInput)
-                                        } else if (accessCodeInput.isNotEmpty()) {
-                                            codeError = "Invalid code. Must match exact capital letters (e.g. DEDICATIONPRO)."
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = accessCodeInput,
+                                    onValueChange = { input ->
+                                        accessCodeInput = input
+                                        codeError = null
+                                    },
+                                    placeholder = {
+                                        Text(
+                                            "e.g. DPRO-7X9K2M",
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF64748B)
+                                        )
+                                    },
+                                    singleLine = true,
+                                    enabled = !isRedeemingCode,
+                                    keyboardOptions = KeyboardOptions(
+                                        capitalization = KeyboardCapitalization.Characters,
+                                        imeAction = ImeAction.Done
+                                    ),
+                                    keyboardActions = KeyboardActions(
+                                        onDone = {
+                                            if (!isRedeemingCode) {
+                                                submitPromoCode(accessCodeInput)
+                                            }
                                         }
+                                    ),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = CyanNeon,
+                                        unfocusedBorderColor = Color(0xFF475569),
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White,
+                                        focusedContainerColor = Color(0xFF0F172A),
+                                        unfocusedContainerColor = Color(0xFF0F172A)
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("access_code_input"),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Button(
+                                    onClick = { submitPromoCode(accessCodeInput) },
+                                    enabled = !isRedeemingCode && accessCodeInput.isNotBlank(),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = CyanNeon,
+                                        contentColor = Color(0xFF002220)
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .height(52.dp)
+                                        .testTag("redeem_promo_code_button")
+                                ) {
+                                    if (isRedeemingCode) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            color = Color(0xFF002220),
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        Text("Redeem", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                     }
-                                ),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = CyanNeon,
-                                    unfocusedBorderColor = Color(0xFF475569),
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedContainerColor = Color(0xFF0F172A),
-                                    unfocusedContainerColor = Color(0xFF0F172A)
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("access_code_input"),
-                                shape = RoundedCornerShape(8.dp)
-                            )
+                                }
+                            }
 
                             if (codeError != null) {
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
                                 Text(
                                     text = codeError!!,
                                     color = Color(0xFFEF4444),
-                                    style = MaterialTheme.typography.labelSmall
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
                         }

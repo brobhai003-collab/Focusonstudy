@@ -113,5 +113,6 @@ data class UserProfile(
     val totalFocusMinutes: Long = 0,
     val sessionsCompleted: Int = 0,
     val isPro: Boolean = false,
-    val lastSyncTimestamp: Long = System.currentTimeMillis()
+    val lastSyncTimestamp: Long = System.currentTimeMillis(),
+    val premiumExpiresAt: Long? = null
 )
