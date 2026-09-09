@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "559458979114",
+    "project_id": "dedication-dbf72",
+    "storage_bucket": "dedication-dbf72.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:559458979114:android:e55b9dfd9d326c4b5ea253",
+        "android_client_info": {
+          "package_name": "com.example"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyArqX2Vbb2Mtm691MJ_VRYrn1HoGN6cEwk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
