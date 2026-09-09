@@ -1,10 +1,12 @@
 package com.example
 
+import android.app.Activity
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
+import android.os.Bundle
 import com.example.data.local.FocusLockDatabase
 import com.example.data.repository.AuthRepository
 import com.example.data.repository.FocusRepository
@@ -66,6 +68,32 @@ class FocusLockApp : Application() {
             }
 
             createNotificationChannels()
+
+            // Foreground lifecycle tracking for periodic Firebase Auth account token refresh
+            registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+                private var runningActivities = 0
+
+                override fun onActivityStarted(activity: Activity) {
+                    runningActivities++
+                    if (runningActivities == 1) {
+                        authRepository.onAppForegrounded()
+                    }
+                }
+
+                override fun onActivityStopped(activity: Activity) {
+                    runningActivities--
+                    if (runningActivities <= 0) {
+                        runningActivities = 0
+                        authRepository.onAppBackgrounded()
+                    }
+                }
+
+                override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+                override fun onActivityResumed(activity: Activity) {}
+                override fun onActivityPaused(activity: Activity) {}
+                override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+                override fun onActivityDestroyed(activity: Activity) {}
+            })
         } catch (e: Exception) {
             android.util.Log.e("FocusLockApp", "Error during app init: ${e.message}", e)
         }

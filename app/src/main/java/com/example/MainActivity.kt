@@ -154,6 +154,7 @@ fun FocusLockMainApp(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 focusViewModel.refreshPermissions()
+                focusViewModel.checkActiveUserStatus(forceRefresh = true)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)

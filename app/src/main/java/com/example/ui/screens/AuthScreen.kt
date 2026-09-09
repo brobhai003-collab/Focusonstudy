@@ -25,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
@@ -50,11 +51,13 @@ import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -100,6 +103,19 @@ fun AuthScreen(
     var passwordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val authError by viewModel.authError.collectAsStateWithLifecycle()
+    val accountDisabledMessage by viewModel.accountDisabledMessage.collectAsStateWithLifecycle()
+
+    LaunchedEffect(authError, accountDisabledMessage) {
+        val disabledMsg = accountDisabledMessage
+        if (!disabledMsg.isNullOrBlank()) {
+            errorMessage = disabledMsg
+            Toast.makeText(context, disabledMsg, Toast.LENGTH_LONG).show()
+        } else if (!authError.isNullOrBlank()) {
+            errorMessage = authError
+        }
+    }
 
     Box(
         modifier = modifier
@@ -177,6 +193,58 @@ fun AuthScreen(
                     modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // Account Disabled Notice (shown if user account was disabled in Firebase)
+                    AnimatedVisibility(
+                        visible = !accountDisabledMessage.isNullOrBlank() || (errorMessage?.contains("disabled", ignoreCase = true) == true),
+                        enter = fadeIn(),
+                        exit = fadeOut()
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp)
+                                .testTag("auth_account_disabled_banner"),
+                            color = CoralStrict.copy(alpha = 0.18f),
+                            shape = RoundedCornerShape(14.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.5.dp, CoralStrict)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(CoralStrict.copy(alpha = 0.25f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Block,
+                                        contentDescription = "Account Disabled",
+                                        tint = CoralStrict,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Account Disabled",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Black,
+                                        color = CoralStrict
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = accountDisabledMessage ?: errorMessage ?: "Your account has been disabled.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // Sign In vs Register Tabs
                     TabRow(
                         selectedTabIndex = selectedTab,
@@ -195,6 +263,8 @@ fun AuthScreen(
                             onClick = {
                                 selectedTab = 0
                                 errorMessage = null
+                                viewModel.clearAccountDisabledMessage()
+                                viewModel.clearAuthError()
                             },
                             text = {
                                 Text(
@@ -209,6 +279,8 @@ fun AuthScreen(
                             onClick = {
                                 selectedTab = 1
                                 errorMessage = null
+                                viewModel.clearAccountDisabledMessage()
+                                viewModel.clearAuthError()
                             },
                             text = {
                                 Text(
@@ -307,7 +379,7 @@ fun AuthScreen(
 
                     // Error Message
                     AnimatedVisibility(
-                        visible = errorMessage != null,
+                        visible = errorMessage != null && errorMessage != accountDisabledMessage && errorMessage?.contains("disabled", ignoreCase = true) != true,
                         enter = fadeIn(),
                         exit = fadeOut()
                     ) {
@@ -335,6 +407,8 @@ fun AuthScreen(
                     Button(
                         onClick = {
                             focusManager.clearFocus()
+                            viewModel.clearAccountDisabledMessage()
+                            viewModel.clearAuthError()
                             if (email.isBlank() || password.isBlank()) {
                                 errorMessage = "Please enter both email and password"
                                 return@Button

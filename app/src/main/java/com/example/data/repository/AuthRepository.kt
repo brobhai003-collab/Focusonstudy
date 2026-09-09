@@ -2,6 +2,10 @@ package com.example.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.util.Log
 import com.example.FocusLockApp
 import com.example.data.model.UserProfile
@@ -22,11 +26,16 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -45,14 +54,22 @@ class AuthRepository(private val context: Context) {
     private val _authError = MutableStateFlow<String?>(null)
     val authError: StateFlow<String?> = _authError.asStateFlow()
 
+    private val _accountDisabledMessage = MutableStateFlow<String?>(null)
+    val accountDisabledMessage: StateFlow<String?> = _accountDisabledMessage.asStateFlow()
+
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
     private val repoScope = CoroutineScope(Dispatchers.IO)
+    private var periodicRefreshJob: Job? = null
+    private var isForegrounded = false
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private val tokenCheckMutex = Mutex()
 
     init {
         ensureFirebaseInitialized()
         ensurePromoCodesSeeded()
+        registerNetworkConnectivityListener()
         val auth = getFirebaseAuth()
         val initialUser = auth?.currentUser
         if (initialUser != null) {
@@ -60,6 +77,8 @@ class AuthRepository(private val context: Context) {
             // Use ONLY that data for isPro and premiumExpiresAt.
             repoScope.launch {
                 fetchUserProfileFromFirestore(initialUser)
+                // Real-time account verification on launch
+                checkUserTokenStatus(forceRefresh = true)
             }
         } else {
             // No user is logged in
@@ -93,6 +112,27 @@ class AuthRepository(private val context: Context) {
                 }
             }
         }
+
+        // Real-time check via Firebase ID token listener (addIdTokenListener)
+        auth?.addIdTokenListener(FirebaseAuth.IdTokenListener { firebaseAuth ->
+            val user = firebaseAuth.currentUser
+            if (user != null) {
+                repoScope.launch {
+                    checkUserTokenStatus(forceRefresh = false)
+                }
+            } else {
+                if (_currentUser.value != null || prefs.getString("user_uid", null) != null) {
+                    _currentUser.value = null
+                    _userProfile.value = null
+                    prefs.edit().clear().apply()
+                    try {
+                        FocusLockApp.instance.preferencesRepository.resetUserPreferencesOnLogout()
+                    } catch (e: Exception) {
+                        // Non-blocking
+                    }
+                }
+            }
+        })
     }
 
     private fun ensureFirebaseInitialized() {
@@ -394,6 +434,170 @@ class AuthRepository(private val context: Context) {
         }
     }
 
+    /**
+     * Force-signs-out user immediately if their Firebase account is disabled or deleted.
+     * Sets error banner message, cleans up local state, and stops any active focus session.
+     */
+    fun handleAccountDisabled(message: String = "Your account has been disabled.") {
+        Log.w("AuthRepository", "Force-signing-out: Account disabled/invalid ($message)")
+        _accountDisabledMessage.value = message
+        _authError.value = message
+        try {
+            getFirebaseAuth()?.signOut()
+        } catch (e: Exception) {
+            Log.e("AuthRepository", "Error during FirebaseAuth signOut: ${e.message}", e)
+        }
+        prefs.edit().clear().apply()
+        _currentUser.value = null
+        _userProfile.value = null
+
+        try {
+            FocusLockApp.instance.preferencesRepository.resetUserPreferencesOnLogout()
+        } catch (e: Exception) {
+            Log.e("AuthRepository", "Error resetting preferences on disabled logout: ${e.message}", e)
+        }
+
+        try {
+            com.example.service.FocusTimerService.stop(context)
+        } catch (e: Exception) {
+            // Non-blocking
+        }
+    }
+
+    /**
+     * Verifies user's token and account status against Firebase Auth backend.
+     * If forceRefresh is true, requests a new ID token directly from the server.
+     * If account is disabled (ERROR_USER_DISABLED / user-disabled), immediately force-signs-out.
+     * Synchronized via tokenCheckMutex to prevent duplicate concurrent network calls.
+     */
+    suspend fun checkUserTokenStatus(forceRefresh: Boolean = true): Boolean = withContext(Dispatchers.IO) {
+        val auth = getFirebaseAuth() ?: return@withContext false
+        val user = auth.currentUser ?: return@withContext false
+
+        tokenCheckMutex.withLock {
+            if (_currentUser.value == null && auth.currentUser == null) {
+                return@withContext false
+            }
+
+            try {
+                user.getIdToken(forceRefresh).awaitTask()
+                user.reload().awaitTask()
+                true
+            } catch (e: Exception) {
+                Log.w("AuthRepository", "checkUserTokenStatus check result: ${e.message}")
+                if (isUserDisabledException(e)) {
+                    Log.w("AuthRepository", "User account disabled detected! Forcing signout.")
+                    handleAccountDisabled("Your account has been disabled.")
+                    false
+                } else if (isUserNotFoundOrDeletedException(e)) {
+                    Log.w("AuthRepository", "User account deleted or not found! Forcing signout.")
+                    handleAccountDisabled("Your account is no longer available.")
+                    false
+                } else {
+                    // Network or transient error: do not log out user on temporary connection drop
+                    true
+                }
+            }
+        }
+    }
+
+    /**
+     * Registers a ConnectivityManager.NetworkCallback to immediately trigger
+     * a token refresh check whenever internet connectivity is gained or regained
+     * while the app is open. If an account was disabled while offline, this ensures
+     * immediate force-sign-out the moment connectivity returns.
+     */
+    fun registerNetworkConnectivityListener() {
+        if (networkCallback != null) return
+        val connectivityManager =
+            context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+
+        try {
+            val callback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    super.onAvailable(network)
+                    Log.d("AuthRepository", "Network connection gained/regained while app is open. Triggering token refresh check.")
+                    if (isForegrounded && (_currentUser.value != null || getFirebaseAuth()?.currentUser != null)) {
+                        repoScope.launch {
+                            checkUserTokenStatus(forceRefresh = true)
+                        }
+                    }
+                }
+
+                override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+                    super.onCapabilitiesChanged(network, networkCapabilities)
+                    val hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    if (hasInternet && isForegrounded && (_currentUser.value != null || getFirebaseAuth()?.currentUser != null)) {
+                        repoScope.launch {
+                            checkUserTokenStatus(forceRefresh = true)
+                        }
+                    }
+                }
+
+                override fun onLost(network: Network) {
+                    super.onLost(network)
+                    Log.d("AuthRepository", "Network connection lost.")
+                }
+            }
+
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+
+            connectivityManager.registerNetworkCallback(request, callback)
+            networkCallback = callback
+            Log.d("AuthRepository", "ConnectivityManager.NetworkCallback registered successfully.")
+        } catch (e: Exception) {
+            Log.e("AuthRepository", "Failed to register NetworkCallback: ${e.message}", e)
+        }
+    }
+
+    fun unregisterNetworkConnectivityListener() {
+        val callback = networkCallback ?: return
+        val connectivityManager =
+            context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        try {
+            connectivityManager?.unregisterNetworkCallback(callback)
+            Log.d("AuthRepository", "ConnectivityManager.NetworkCallback unregistered.")
+        } catch (e: Exception) {
+            Log.e("AuthRepository", "Failed to unregister NetworkCallback: ${e.message}", e)
+        } finally {
+            networkCallback = null
+        }
+    }
+
+    fun onAppForegrounded() {
+        isForegrounded = true
+        registerNetworkConnectivityListener()
+        startPeriodicTokenRefresh()
+        repoScope.launch {
+            if (_currentUser.value != null || getFirebaseAuth()?.currentUser != null) {
+                checkUserTokenStatus(forceRefresh = true)
+            }
+        }
+    }
+
+    fun onAppBackgrounded() {
+        isForegrounded = false
+        unregisterNetworkConnectivityListener()
+        periodicRefreshJob?.cancel()
+        periodicRefreshJob = null
+    }
+
+    private fun startPeriodicTokenRefresh() {
+        if (periodicRefreshJob?.isActive == true) return
+        periodicRefreshJob = repoScope.launch {
+            while (isActive && isForegrounded) {
+                // Periodic check every 2 minutes while app is in foreground
+                delay(2 * 60 * 1000L)
+                if (isForegrounded && (_currentUser.value != null || getFirebaseAuth()?.currentUser != null)) {
+                    Log.d("AuthRepository", "Running periodic foreground token refresh check...")
+                    checkUserTokenStatus(forceRefresh = true)
+                }
+            }
+        }
+    }
+
     private fun saveProfile(profile: UserProfile) {
         val editor = prefs.edit()
             .putString("user_uid", profile.uid)
@@ -685,7 +889,78 @@ class AuthRepository(private val context: Context) {
         _authError.value = null
     }
 
+    fun clearAccountDisabledMessage() {
+        _accountDisabledMessage.value = null
+    }
+
+    private fun isUserDisabledException(e: Throwable): Boolean {
+        var curr: Throwable? = e
+        while (curr != null) {
+            if (curr is FirebaseAuthInvalidUserException) {
+                val code = curr.errorCode
+                val msg = (curr.message ?: "").lowercase()
+                if (code == "ERROR_USER_DISABLED" ||
+                    msg.contains("disabled") ||
+                    msg.contains("user-disabled") ||
+                    msg.contains("user_disabled") ||
+                    msg.contains("blocked")
+                ) {
+                    return true
+                }
+            }
+            if (curr is FirebaseAuthException) {
+                val code = curr.errorCode
+                val msg = (curr.message ?: "").lowercase()
+                if (code == "ERROR_USER_DISABLED" ||
+                    msg.contains("user-disabled") ||
+                    msg.contains("user_disabled") ||
+                    msg.contains("disabled")
+                ) {
+                    return true
+                }
+            }
+            val msg = (curr.message ?: "").lowercase()
+            if (msg.contains("user-disabled") ||
+                msg.contains("user_disabled") ||
+                msg.contains("error_user_disabled") ||
+                msg.contains("the user account has been disabled") ||
+                msg.contains("user account has been disabled") ||
+                msg.contains("account has been disabled")
+            ) {
+                return true
+            }
+            curr = curr.cause
+        }
+        return false
+    }
+
+    private fun isUserNotFoundOrDeletedException(e: Throwable): Boolean {
+        var curr: Throwable? = e
+        while (curr != null) {
+            if (curr is FirebaseAuthInvalidUserException) {
+                val code = curr.errorCode
+                val msg = (curr.message ?: "").lowercase()
+                if (code == "ERROR_USER_NOT_FOUND" ||
+                    msg.contains("user-not-found") ||
+                    msg.contains("not found") ||
+                    msg.contains("deleted")
+                ) {
+                    return true
+                }
+            }
+            val msg = (curr.message ?: "").lowercase()
+            if (msg.contains("user_not_found") || msg.contains("user-not-found") || msg.contains("error_user_not_found")) {
+                return true
+            }
+            curr = curr.cause
+        }
+        return false
+    }
+
     private fun mapAuthException(e: Exception): String {
+        if (isUserDisabledException(e)) {
+            return "Your account has been disabled."
+        }
         return when (e) {
             is FirebaseAuthInvalidUserException -> "No account found with this email. Please create an account first."
             is FirebaseAuthInvalidCredentialsException -> "Incorrect email or password. Please check your credentials."

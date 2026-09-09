@@ -45,6 +45,7 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     val currentUser = authRepo.currentUser
     val userProfile = authRepo.userProfile
     val authError = authRepo.authError
+    val accountDisabledMessage = authRepo.accountDisabledMessage
     val isSyncing = authRepo.isSyncing
 
     // --- State from Service & Prefs ---
@@ -567,6 +568,12 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
         authRepo.signOut()
     }
 
+    fun checkActiveUserStatus(forceRefresh: Boolean = true) {
+        viewModelScope.launch {
+            authRepo.checkUserTokenStatus(forceRefresh)
+        }
+    }
+
     fun syncLocalProfileToCloud() {
         viewModelScope.launch {
             authRepo.syncStats(
@@ -580,5 +587,9 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearAuthError() {
         authRepo.clearError()
+    }
+
+    fun clearAccountDisabledMessage() {
+        authRepo.clearAccountDisabledMessage()
     }
 }
