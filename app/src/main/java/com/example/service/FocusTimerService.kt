@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 class FocusTimerService : Service() {
 
@@ -307,7 +308,7 @@ class FocusTimerService : Service() {
     private fun formatTime(seconds: Long): String {
         val m = seconds / 60
         val s = seconds % 60
-        return String.format("%02d:%02d", m, s)
+        return String.format(Locale.getDefault(), "%02d:%02d", m, s)
     }
 
     override fun onDestroy() {

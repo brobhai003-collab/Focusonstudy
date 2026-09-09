@@ -43,6 +43,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -71,6 +72,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.util.Locale
 import com.example.data.model.FocusScheduleEntity
 import com.example.data.model.InstalledApp
 import com.example.ui.theme.AmberWarning
@@ -312,7 +314,7 @@ fun SchedulesAndTaskScreen(
                                 Spacer(modifier = Modifier.height(10.dp))
 
                                 LinearProgressIndicator(
-                                    progress = progress,
+                                    progress = { progress },
                                     color = CyanNeon,
                                     trackColor = Color(0xFF1E293B),
                                     modifier = Modifier
@@ -429,6 +431,7 @@ fun ScheduleItemCard(
                     )
                     Text(
                         text = String.format(
+                            Locale.getDefault(),
                             "%02d:%02d - %02d:%02d",
                             schedule.startHour,
                             schedule.startMinute,
@@ -530,14 +533,14 @@ fun AddScheduleDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("Start: ${String.format("%02d:%02d", startHour, startMinute)}", fontWeight = FontWeight.Bold, color = CyanNeon)
+                        Text("Start: ${String.format(Locale.getDefault(), "%02d:%02d", startHour, startMinute)}", fontWeight = FontWeight.Bold, color = CyanNeon)
                         Row {
                             Button(onClick = { startHour = (startHour + 1) % 24 }, modifier = Modifier.scale(0.8f)) { Text("+1h") }
                         }
                     }
                     Text("to", fontWeight = FontWeight.Bold)
                     Column {
-                        Text("End: ${String.format("%02d:%02d", endHour, endMinute)}", fontWeight = FontWeight.Bold, color = CyanNeon)
+                        Text("End: ${String.format(Locale.getDefault(), "%02d:%02d", endHour, endMinute)}", fontWeight = FontWeight.Bold, color = CyanNeon)
                         Row {
                             Button(onClick = { endHour = (endHour + 1) % 24 }, modifier = Modifier.scale(0.8f)) { Text("+1h") }
                         }
@@ -629,7 +632,7 @@ fun AddTaskUnlockDialog(
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                         modifier = Modifier
-                            .menuAnchor()
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                             .fillMaxWidth()
                     )
                     ExposedDropdownMenu(

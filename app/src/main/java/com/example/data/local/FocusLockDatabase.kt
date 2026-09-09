@@ -34,7 +34,7 @@ abstract class FocusLockDatabase : RoomDatabase() {
                     context.applicationContext,
                     FocusLockDatabase::class.java,
                     "focuslock_db"
-                ).fallbackToDestructiveMigration().build()
+                ).fallbackToDestructiveMigration(dropAllTables = true).build()
                 INSTANCE = instance
                 instance
             }

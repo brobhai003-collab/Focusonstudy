@@ -543,15 +543,13 @@ fun InsightsAndSettingsScreen(
                         desc = "Allows instant Focus Shield overlay when opening blocked apps.",
                         isGranted = hasOverlay,
                         onGrantClick = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                val intent = Intent(
-                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                    Uri.parse("package:${context.packageName}")
-                                ).apply {
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                }
-                                context.startActivity(intent)
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:${context.packageName}")
+                            ).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
                             }
+                            context.startActivity(intent)
                         }
                     )
                 }

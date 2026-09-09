@@ -54,6 +54,25 @@ class AuthRepository(private val context: Context) {
         ensureFirebaseInitialized()
         ensurePromoCodesSeeded()
         val auth = getFirebaseAuth()
+        val initialUser = auth?.currentUser
+        if (initialUser != null) {
+            // Requirement 1: On app launch, fetch that specific user's document from Firestore "users/{uid}"
+            // Use ONLY that data for isPro and premiumExpiresAt.
+            repoScope.launch {
+                fetchUserProfileFromFirestore(initialUser)
+            }
+        } else {
+            // No user is logged in
+            _currentUser.value = null
+            _userProfile.value = null
+            prefs.edit().clear().apply()
+            try {
+                FocusLockApp.instance.preferencesRepository.resetUserPreferencesOnLogout()
+            } catch (e: Exception) {
+                // Non-blocking
+            }
+        }
+
         auth?.addAuthStateListener { firebaseAuth ->
             val user = firebaseAuth.currentUser
             if (user != null) {
@@ -61,10 +80,16 @@ class AuthRepository(private val context: Context) {
                     fetchUserProfileFromFirestore(user)
                 }
             } else {
-                if (_currentUser.value != null && prefs.getString("user_uid", null) != null) {
+                // Requirement 2: Clear cached state on logout
+                if (_currentUser.value != null || prefs.getString("user_uid", null) != null) {
                     _currentUser.value = null
                     _userProfile.value = null
                     prefs.edit().clear().apply()
+                    try {
+                        FocusLockApp.instance.preferencesRepository.resetUserPreferencesOnLogout()
+                    } catch (e: Exception) {
+                        // Non-blocking
+                    }
                 }
             }
         }
@@ -119,19 +144,34 @@ class AuthRepository(private val context: Context) {
         }
     }
 
+    /**
+     * Requirement 1 & 2:
+     * Never reuse cached state from a different account or after logout.
+     * Only return cached profile if it strictly matches the current Firebase Auth user's UID.
+     */
     private fun loadSavedProfile(): UserProfile? {
-        val uid = prefs.getString("user_uid", null) ?: return null
-        val email = prefs.getString("user_email", "") ?: ""
+        val auth = getFirebaseAuth()
+        val currentFirebaseUser = auth?.currentUser ?: return null
+        val savedUid = prefs.getString("user_uid", null) ?: return null
+
+        // If saved cache belongs to a different UID than current Firebase user, discard immediately
+        if (savedUid != currentFirebaseUser.uid) {
+            prefs.edit().clear().apply()
+            return null
+        }
+
+        val email = prefs.getString("user_email", "") ?: currentFirebaseUser.email ?: ""
         val displayName = prefs.getString("user_name", "Focus Warrior") ?: "Focus Warrior"
-        val photoUrl = prefs.getString("user_photo_url", null)
-        val streak = prefs.getInt("user_streak", 1)
+        val photoUrl = prefs.getString("user_photo_url", null) ?: currentFirebaseUser.photoUrl?.toString()
+        val streak = prefs.getInt("user_streak", 0)
         val totalMinutes = prefs.getLong("user_total_minutes", 0L)
         val sessions = prefs.getInt("user_sessions", 0)
         val isPro = prefs.getBoolean("user_is_pro", false)
         val lastSync = prefs.getLong("user_last_sync", System.currentTimeMillis())
         val expiresAt = if (prefs.contains("user_premium_expires_at")) prefs.getLong("user_premium_expires_at", 0L) else null
 
-        val effectiveIsPro = if (expiresAt != null && expiresAt > 0L && expiresAt < System.currentTimeMillis()) {
+        val isExpired = expiresAt != null && expiresAt > 0L && expiresAt < System.currentTimeMillis()
+        val effectiveIsPro = if (isExpired) {
             prefs.edit().putBoolean("user_is_pro", false).apply()
             try {
                 FocusLockApp.instance.preferencesRepository.setProUser(false)
@@ -144,7 +184,7 @@ class AuthRepository(private val context: Context) {
         }
 
         return UserProfile(
-            uid = uid,
+            uid = savedUid,
             email = email,
             displayName = displayName,
             photoUrl = photoUrl,
@@ -182,8 +222,17 @@ class AuthRepository(private val context: Context) {
 
         _isSyncing.value = true
         try {
+            // Clear any leftover local UI state before signing in so nothing leaks from a previous session
+            try {
+                FocusLockApp.instance.preferencesRepository.resetUserPreferencesOnLogout()
+            } catch (e: Exception) {
+                // Non-blocking
+            }
+
             val authResult = auth.signInWithEmailAndPassword(cleanEmail, cleanPass).awaitTask()
             val user = authResult.user ?: throw Exception("User authentication failed.")
+
+            // Requirement 1 & 4: Fetch user document from Firestore "users/{uid}" as single source of truth
             val profile = fetchUserProfileFromFirestore(user)
             Result.success(profile)
         } catch (e: Exception) {
@@ -222,6 +271,13 @@ class AuthRepository(private val context: Context) {
 
         _isSyncing.value = true
         try {
+            // Requirement 2 & 3: Clear any leftover UI preferences so new account starts totally clean
+            try {
+                FocusLockApp.instance.preferencesRepository.resetUserPreferencesOnLogout()
+            } catch (e: Exception) {
+                // Non-blocking
+            }
+
             val authResult = auth.createUserWithEmailAndPassword(cleanEmail, cleanPass).awaitTask()
             val user = authResult.user ?: throw Exception("User registration failed.")
 
@@ -234,39 +290,31 @@ class AuthRepository(private val context: Context) {
                 Log.w("AuthRepository", "Failed to update Firebase display name: ${e.message}")
             }
 
-            val localStreak = try {
-                FocusLockApp.instance.preferencesRepository.currentStreak.value
-            } catch (e: Exception) {
-                prefs.getInt("user_streak", 1)
-            }
-            val localIsPro = try {
-                FocusLockApp.instance.preferencesRepository.isProUser.value
-            } catch (e: Exception) {
-                prefs.getBoolean("user_is_pro", false)
-            }
-
+            // Requirement 3: New account is isPro = false by default, zero stats, no inherited state
             val profile = UserProfile(
                 uid = user.uid,
                 email = cleanEmail,
                 displayName = cleanName,
                 photoUrl = null,
-                streak = maxOf(localStreak, 1),
+                streak = 0,
                 totalFocusMinutes = 0L,
                 sessionsCompleted = 0,
-                isPro = localIsPro,
-                lastSyncTimestamp = System.currentTimeMillis()
+                isPro = false,
+                lastSyncTimestamp = System.currentTimeMillis(),
+                premiumExpiresAt = null
             )
 
             val firestore = getFirestore()
             if (firestore != null) {
-                val userMap = hashMapOf<String, Any>(
+                val userMap = hashMapOf<String, Any?>(
                     "uid" to profile.uid,
                     "email" to profile.email,
                     "displayName" to profile.displayName,
-                    "streak" to profile.streak,
-                    "totalFocusMinutes" to profile.totalFocusMinutes,
-                    "sessionsCompleted" to profile.sessionsCompleted,
-                    "isPro" to profile.isPro,
+                    "streak" to 0,
+                    "totalFocusMinutes" to 0L,
+                    "sessionsCompleted" to 0,
+                    "isPro" to false,
+                    "premiumExpiresAt" to null,
                     "lastSyncTimestamp" to profile.lastSyncTimestamp,
                     "createdAt" to System.currentTimeMillis()
                 )
@@ -274,6 +322,12 @@ class AuthRepository(private val context: Context) {
             }
 
             saveProfile(profile)
+            try {
+                FocusLockApp.instance.preferencesRepository.setProUser(false)
+            } catch (e: Exception) {
+                // Non-blocking
+            }
+
             Result.success(profile)
         } catch (e: Exception) {
             val mappedErr = mapAuthException(e)
@@ -296,6 +350,12 @@ class AuthRepository(private val context: Context) {
 
         _isSyncing.value = true
         return@withContext try {
+            try {
+                FocusLockApp.instance.preferencesRepository.resetUserPreferencesOnLogout()
+            } catch (e: Exception) {
+                // Non-blocking
+            }
+
             val credential = GoogleAuthProvider.getCredential(idToken, null)
             val authResult = auth.signInWithCredential(credential).awaitTask()
             val user = authResult.user ?: throw Exception("Google sign in returned empty user profile.")
@@ -311,6 +371,12 @@ class AuthRepository(private val context: Context) {
         }
     }
 
+    /**
+     * Requirement 2:
+     * When any user logs out, clear all locally-stored UI/preference state
+     * (SharedPreferences) including toggles like Strict Mode, so nothing leaks between accounts.
+     * Also clear any locally cached isPro/premiumExpiresAt values.
+     */
     fun signOut() {
         try {
             getFirebaseAuth()?.signOut()
@@ -320,6 +386,12 @@ class AuthRepository(private val context: Context) {
         prefs.edit().clear().apply()
         _currentUser.value = null
         _userProfile.value = null
+
+        try {
+            FocusLockApp.instance.preferencesRepository.resetUserPreferencesOnLogout()
+        } catch (e: Exception) {
+            Log.e("AuthRepository", "Error resetting preferences on logout: ${e.message}", e)
+        }
     }
 
     private fun saveProfile(profile: UserProfile) {
@@ -345,119 +417,97 @@ class AuthRepository(private val context: Context) {
         _userProfile.value = profile
     }
 
+    /**
+     * Requirement 1, 4, 6:
+     * PREMIUM STATE SOURCE OF TRUTH:
+     * Fetches user's document from Firestore "users/{uid}" and uses ONLY that data
+     * for isPro and premiumExpiresAt.
+     * Never merges or keeps cached premium state from previous sessions or accounts.
+     */
     private suspend fun fetchUserProfileFromFirestore(user: FirebaseUser): UserProfile {
         val firestore = getFirestore()
         val cleanEmail = user.email ?: ""
         val defaultName = user.displayName ?: cleanEmail.substringBefore("@").replace(".", " ").capitalizeWords().ifEmpty { "Focus Warrior" }
+        val now = System.currentTimeMillis()
 
-        var profile = UserProfile(
-            uid = user.uid,
-            email = cleanEmail,
-            displayName = defaultName,
-            photoUrl = user.photoUrl?.toString(),
-            streak = prefs.getInt("user_streak", 1),
-            totalFocusMinutes = prefs.getLong("user_total_minutes", 0L),
-            sessionsCompleted = prefs.getInt("user_sessions", 0),
-            isPro = prefs.getBoolean("user_is_pro", false),
-            lastSyncTimestamp = System.currentTimeMillis()
-        )
+        var remoteIsPro = false
+        var remoteExpiresAt: Long? = null
+        var remoteStreak = 0
+        var remoteMinutes = 0L
+        var remoteSessions = 0
+        var remoteDisplayName = defaultName
+        var remoteLastSync = now
 
         if (firestore != null) {
             try {
                 val doc = firestore.collection("users").document(user.uid).get().awaitTask()
                 if (doc.exists()) {
-                    val remoteStreak = (doc.getLong("streak") ?: 0L).toInt()
-                    val remoteMinutes = doc.getLong("totalFocusMinutes") ?: 0L
-                    val remoteSessions = (doc.getLong("sessionsCompleted") ?: 0L).toInt()
-                    val remoteExpiresAt = doc.getLong("premiumExpiresAt")
-                    val now = System.currentTimeMillis()
+                    remoteStreak = (doc.getLong("streak") ?: 0L).toInt()
+                    remoteMinutes = doc.getLong("totalFocusMinutes") ?: 0L
+                    remoteSessions = (doc.getLong("sessionsCompleted") ?: 0L).toInt()
+                    remoteDisplayName = doc.getString("displayName") ?: defaultName
+                    remoteLastSync = doc.getLong("lastSyncTimestamp") ?: now
 
-                    // Requirement 4: check if premiumExpiresAt exists and is in the past
-                    val isExpired = remoteExpiresAt != null && remoteExpiresAt < now
-                    val remoteIsPro = if (isExpired) {
+                    val rawIsPro = doc.getBoolean("isPro") ?: false
+                    remoteExpiresAt = doc.getLong("premiumExpiresAt")
+
+                    // Requirement 1 & 4 & 6: Expiration check
+                    if (remoteExpiresAt != null && remoteExpiresAt > 0L && remoteExpiresAt < now) {
+                        remoteIsPro = false
                         try {
-                            firestore.collection("users").document(user.uid).update(
-                                mapOf("isPro" to false)
-                            ).awaitTask()
-                        } catch (e: Exception) {
                             firestore.collection("users").document(user.uid).set(
                                 mapOf("isPro" to false),
                                 SetOptions.merge()
                             ).awaitTask()
-                        }
-                        prefs.edit().putBoolean("user_is_pro", false).apply()
-                        try {
-                            FocusLockApp.instance.preferencesRepository.setProUser(false)
                         } catch (e: Exception) {
-                            Log.w("AuthRepository", "Failed to update preferencesRepository: ${e.message}")
+                            Log.w("AuthRepository", "Failed to update expired pro state in Firestore: ${e.message}")
                         }
-                        false
                     } else {
-                        doc.getBoolean("isPro") ?: false
-                    }
-
-                    val remoteName = doc.getString("displayName") ?: defaultName
-
-                    val localStreak = prefs.getInt("user_streak", 0)
-                    val localMinutes = prefs.getLong("user_total_minutes", 0L)
-                    val localSessions = prefs.getInt("user_sessions", 0)
-                    val localIsPro = if (isExpired) false else prefs.getBoolean("user_is_pro", false)
-
-                    val mergedStreak = maxOf(remoteStreak, localStreak)
-                    val mergedMinutes = maxOf(remoteMinutes, localMinutes)
-                    val mergedSessions = maxOf(remoteSessions, localSessions)
-                    val mergedIsPro = if (isExpired) false else (remoteIsPro || localIsPro)
-
-                    profile = UserProfile(
-                        uid = user.uid,
-                        email = cleanEmail,
-                        displayName = remoteName,
-                        photoUrl = user.photoUrl?.toString(),
-                        streak = mergedStreak,
-                        totalFocusMinutes = mergedMinutes,
-                        sessionsCompleted = mergedSessions,
-                        isPro = mergedIsPro,
-                        lastSyncTimestamp = doc.getLong("lastSyncTimestamp") ?: System.currentTimeMillis(),
-                        premiumExpiresAt = remoteExpiresAt
-                    )
-
-                    if (!isExpired && (localStreak > remoteStreak || localMinutes > remoteMinutes || localSessions > remoteSessions || (localIsPro && !remoteIsPro))) {
-                        val updateMap = hashMapOf<String, Any>(
-                            "streak" to mergedStreak,
-                            "totalFocusMinutes" to mergedMinutes,
-                            "sessionsCompleted" to mergedSessions,
-                            "isPro" to mergedIsPro,
-                            "lastSyncTimestamp" to System.currentTimeMillis()
-                        )
-                        firestore.collection("users").document(user.uid).set(updateMap, SetOptions.merge()).awaitTask()
+                        remoteIsPro = rawIsPro
                     }
                 } else {
-                    val userMap = hashMapOf<String, Any>(
-                        "uid" to profile.uid,
-                        "email" to profile.email,
-                        "displayName" to profile.displayName,
-                        "streak" to profile.streak,
-                        "totalFocusMinutes" to profile.totalFocusMinutes,
-                        "sessionsCompleted" to profile.sessionsCompleted,
-                        "isPro" to profile.isPro,
-                        "lastSyncTimestamp" to profile.lastSyncTimestamp,
-                        "createdAt" to System.currentTimeMillis()
+                    // New user document in Firestore - strictly false
+                    val userMap = hashMapOf<String, Any?>(
+                        "uid" to user.uid,
+                        "email" to cleanEmail,
+                        "displayName" to defaultName,
+                        "streak" to 0,
+                        "totalFocusMinutes" to 0L,
+                        "sessionsCompleted" to 0,
+                        "isPro" to false,
+                        "premiumExpiresAt" to null,
+                        "lastSyncTimestamp" to now,
+                        "createdAt" to now
                     )
                     firestore.collection("users").document(user.uid).set(userMap).awaitTask()
+                    remoteIsPro = false
+                    remoteExpiresAt = null
                 }
             } catch (e: Exception) {
-                Log.e("AuthRepository", "Error fetching/updating Firestore document: ${e.message}", e)
+                Log.e("AuthRepository", "Error fetching user document from Firestore: ${e.message}", e)
             }
         }
 
+        val profile = UserProfile(
+            uid = user.uid,
+            email = cleanEmail,
+            displayName = remoteDisplayName,
+            photoUrl = user.photoUrl?.toString(),
+            streak = remoteStreak,
+            totalFocusMinutes = remoteMinutes,
+            sessionsCompleted = remoteSessions,
+            isPro = remoteIsPro,
+            lastSyncTimestamp = remoteLastSync,
+            premiumExpiresAt = remoteExpiresAt
+        )
+
         saveProfile(profile)
 
-        if (profile.isPro) {
-            try {
-                FocusLockApp.instance.preferencesRepository.setProUser(true)
-            } catch (e: Exception) {
-                // Non-blocking
-            }
+        // Strictly update local preference with the single source of truth from Firestore
+        try {
+            FocusLockApp.instance.preferencesRepository.setProUser(remoteIsPro)
+        } catch (e: Exception) {
+            Log.w("AuthRepository", "Failed to update preferencesRepository: ${e.message}")
         }
 
         return profile
@@ -525,7 +575,7 @@ class AuthRepository(private val context: Context) {
                     )
                 )
 
-                // Requirement 3: write to user's own document in "users" collection:
+                // Requirement 3 & 6: write to user's own document in "users" collection:
                 // "isPro" = true, "premiumExpiresAt" = server timestamp + 28 days
                 transaction.set(
                     userDocRef,
@@ -571,6 +621,10 @@ class AuthRepository(private val context: Context) {
         }
     }
 
+    /**
+     * Stats sync to Firestore. Only synchronizes streak and focus statistics.
+     * Does NOT touch or overwrite isPro / premiumExpiresAt in Firestore.
+     */
     suspend fun syncStats(streak: Int, totalMinutes: Long, sessions: Int, isPro: Boolean) = withContext(Dispatchers.IO) {
         val auth = getFirebaseAuth()
         val fbUser = auth?.currentUser
@@ -587,8 +641,6 @@ class AuthRepository(private val context: Context) {
             else maxOf(sessions, current.sessionsCompleted)
         } else sessions
 
-        val updatedIsPro = isPro || (current?.isPro == true)
-
         val updatedProfile = UserProfile(
             uid = fbUser?.uid ?: current?.uid ?: "local_warrior",
             email = fbUser?.email ?: current?.email ?: "",
@@ -597,7 +649,7 @@ class AuthRepository(private val context: Context) {
             streak = updatedStreak,
             totalFocusMinutes = updatedMinutes,
             sessionsCompleted = updatedSessions,
-            isPro = updatedIsPro,
+            isPro = current?.isPro ?: false,
             lastSyncTimestamp = System.currentTimeMillis(),
             premiumExpiresAt = current?.premiumExpiresAt
         )
@@ -616,7 +668,6 @@ class AuthRepository(private val context: Context) {
                         "streak" to updatedStreak,
                         "totalFocusMinutes" to updatedMinutes,
                         "sessionsCompleted" to updatedSessions,
-                        "isPro" to updatedIsPro,
                         "lastSyncTimestamp" to System.currentTimeMillis()
                     )
                     firestore.collection("users").document(fbUser.uid).set(data, SetOptions.merge()).awaitTask()

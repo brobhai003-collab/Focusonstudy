@@ -506,9 +506,7 @@ class FocusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun hasOverlayPermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Settings.canDrawOverlays(getApplication())
-        } else true
+        return Settings.canDrawOverlays(getApplication())
     }
 
     fun hasAllRequiredPermissions(): Boolean {

@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.content.Context
+import java.util.Locale
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -204,7 +205,7 @@ fun TimerScreen(
                 label = "circular_timer_progress"
             )
 
-            val timeFormatted = String.format("%02d:%02d", displaySeconds / 60, displaySeconds % 60)
+            val timeFormatted = String.format(Locale.getDefault(), "%02d:%02d", displaySeconds / 60, displaySeconds % 60)
 
             val modeLabel = if (isSessionActive) {
                 when (currentMode) {

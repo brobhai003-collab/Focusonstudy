@@ -71,6 +71,27 @@ class PreferencesRepository(context: Context) {
         _isOnboardingDone.value = done
     }
 
+    fun resetUserPreferencesOnLogout() {
+        prefs.edit()
+            .putBoolean(KEY_IS_PRO, false)
+            .putBoolean(KEY_STRICT_MODE, false)
+            .putBoolean(KEY_SHORTS_BLOCKER, false)
+            .putBoolean(KEY_WEB_BLOCKER, false)
+            .putString(KEY_AMBIENT_SOUND, AmbientSound.NONE.name)
+            .putInt(KEY_STREAK, 0)
+            .remove(KEY_LAST_STREAK_DATE)
+            .apply()
+
+        _isProUser.value = false
+        _isStrictMode.value = false
+        _isShortsBlockerEnabled.value = false
+        _isWebBlockerEnabled.value = false
+        _selectedAmbient.value = AmbientSound.NONE
+        _currentStreak.value = 0
+
+        clearActiveSession()
+    }
+
     fun saveActiveSession(
         startTimeMillis: Long,
         targetEndTimeMillis: Long,
