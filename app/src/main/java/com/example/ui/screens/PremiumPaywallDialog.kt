@@ -473,7 +473,7 @@ fun PremiumPaywallDialog(
                                     },
                                     placeholder = {
                                         Text(
-                                            "e.g. DPRO-7X9K2M",
+                                            "Access Code",
                                             fontSize = 12.sp,
                                             color = Color(0xFF64748B)
                                         )
