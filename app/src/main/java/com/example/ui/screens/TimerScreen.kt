@@ -159,7 +159,6 @@ fun TimerScreen(
                                 Text(
                                     text = when (mode) {
                                         FocusMode.TIMER -> "Timer"
-                                        FocusMode.STOPWATCH -> "Stopwatch"
                                         FocusMode.POMODORO -> "Pomodoro"
                                     },
                                     style = MaterialTheme.typography.labelMedium,
@@ -185,15 +184,14 @@ fun TimerScreen(
 
             // Circular Progress Display
             val displaySeconds = if (isSessionActive) {
-                if (currentMode == FocusMode.STOPWATCH) elapsedSeconds else remainingSeconds
+                remainingSeconds
             } else {
-                if (selectedTimerMode == FocusMode.STOPWATCH) 0L else selectedDurationMinutes * 60L
+                selectedDurationMinutes * 60L
             }
 
             val totalTarget = if (isSessionActive) targetDurationSeconds.coerceAtLeast(1) else (selectedDurationMinutes * 60L).coerceAtLeast(1)
             val rawProgress = if (isSessionActive) {
-                if (currentMode == FocusMode.STOPWATCH) 1f
-                else ((totalTarget - remainingSeconds).toFloat() / totalTarget.toFloat()).coerceIn(0f, 1f)
+                ((totalTarget - remainingSeconds).toFloat() / totalTarget.toFloat()).coerceIn(0f, 1f)
             } else 0f
 
             val animatedProgress by androidx.compose.animation.core.animateFloatAsState(
@@ -210,13 +208,11 @@ fun TimerScreen(
             val modeLabel = if (isSessionActive) {
                 when (currentMode) {
                     FocusMode.POMODORO -> "POMODORO: ${pomodoroPhase.name}"
-                    FocusMode.STOPWATCH -> "STOPWATCH COUNT UP"
                     FocusMode.TIMER -> if (isStrictMode) "STRICT LOCK" else "FOCUS TIMER"
                 }
             } else {
                 when (selectedTimerMode) {
                     FocusMode.POMODORO -> "POMODORO 25/5"
-                    FocusMode.STOPWATCH -> "OPEN STOPWATCH"
                     FocusMode.TIMER -> if (isStrictMode) "STRICT MODE READY" else "TIMER READY"
                 }
             }
@@ -238,7 +234,7 @@ fun TimerScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // Duration Presets (Only if Timer mode & not running)
-            if (!isSessionActive && selectedTimerMode != FocusMode.STOPWATCH) {
+            if (!isSessionActive) {
                 Text(
                     text = "Quick Select Duration",
                     style = MaterialTheme.typography.labelMedium,

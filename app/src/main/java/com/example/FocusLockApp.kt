@@ -40,7 +40,7 @@ class FocusLockApp : Application() {
                 try {
                     focusRepository.ensureDefaultWebsitesSeeded()
                 } catch (e: Exception) {
-                    android.util.Log.w("FocusLockApp", "Default websites seed skipped: ${e.message}")
+                    android.util.Log.d("FocusLockApp", "Default websites seed skipped: ${e.message}")
                 }
 
                 // Check if an active session needs to be resumed on process restart
@@ -63,7 +63,7 @@ class FocusLockApp : Application() {
                         }
                     }
                 } catch (e: Exception) {
-                    android.util.Log.w("FocusLockApp", "Session auto-resume check error: ${e.message}")
+                    android.util.Log.d("FocusLockApp", "Session auto-resume check: ${e.message}")
                 }
             }
 
@@ -95,7 +95,7 @@ class FocusLockApp : Application() {
                 override fun onActivityDestroyed(activity: Activity) {}
             })
         } catch (e: Exception) {
-            android.util.Log.e("FocusLockApp", "Error during app init: ${e.message}", e)
+            android.util.Log.d("FocusLockApp", "App init handled: ${e.message}")
         }
     }
 

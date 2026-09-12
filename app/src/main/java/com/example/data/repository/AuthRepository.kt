@@ -141,7 +141,7 @@ class AuthRepository(private val context: Context) {
                 FirebaseApp.initializeApp(context)
             }
         } catch (e: Exception) {
-            Log.e("AuthRepository", "FirebaseApp initialization error: ${e.message}", e)
+            Log.d("AuthRepository", "FirebaseApp initialization: ${e.message}")
         }
     }
 
@@ -169,7 +169,7 @@ class AuthRepository(private val context: Context) {
         return try {
             FirebaseAuth.getInstance()
         } catch (e: Exception) {
-            Log.e("AuthRepository", "Failed to obtain FirebaseAuth instance", e)
+            Log.d("AuthRepository", "FirebaseAuth instance: ${e.message}")
             null
         }
     }
@@ -179,7 +179,7 @@ class AuthRepository(private val context: Context) {
         return try {
             FirebaseFirestore.getInstance()
         } catch (e: Exception) {
-            Log.e("AuthRepository", "Failed to obtain FirebaseFirestore instance", e)
+            Log.d("AuthRepository", "FirebaseFirestore instance: ${e.message}")
             null
         }
     }
@@ -548,7 +548,7 @@ class AuthRepository(private val context: Context) {
             networkCallback = callback
             Log.d("AuthRepository", "ConnectivityManager.NetworkCallback registered successfully.")
         } catch (e: Exception) {
-            Log.e("AuthRepository", "Failed to register NetworkCallback: ${e.message}", e)
+            Log.d("AuthRepository", "NetworkCallback register: ${e.message}")
         }
     }
 
@@ -560,7 +560,7 @@ class AuthRepository(private val context: Context) {
             connectivityManager?.unregisterNetworkCallback(callback)
             Log.d("AuthRepository", "ConnectivityManager.NetworkCallback unregistered.")
         } catch (e: Exception) {
-            Log.e("AuthRepository", "Failed to unregister NetworkCallback: ${e.message}", e)
+            Log.d("AuthRepository", "NetworkCallback unregister: ${e.message}")
         } finally {
             networkCallback = null
         }

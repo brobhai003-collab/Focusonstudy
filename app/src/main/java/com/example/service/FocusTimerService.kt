@@ -89,13 +89,8 @@ class FocusTimerService : Service() {
         _currentSound.value = sound
         _pomodoroPhase.value = PomodoroPhase.WORK
 
-        if (mode == FocusMode.STOPWATCH) {
-            _remainingSeconds.value = 0
-            _elapsedSeconds.value = 0
-        } else {
-            _remainingSeconds.value = targetDuration
-            _elapsedSeconds.value = 0
-        }
+        _remainingSeconds.value = targetDuration
+        _elapsedSeconds.value = 0
 
         // Persist session to SharedPreferences with epoch timestamps for reboot/restart recovery
         try {
@@ -125,10 +120,6 @@ class FocusTimerService : Service() {
                 delay(1000)
                 if (!_isPaused.value) {
                     when (_currentMode.value) {
-                        FocusMode.STOPWATCH -> {
-                            _elapsedSeconds.value += 1
-                            _remainingSeconds.value += 1
-                        }
                         FocusMode.TIMER -> {
                             _elapsedSeconds.value += 1
                             if (_remainingSeconds.value > 0) {
@@ -277,13 +268,10 @@ class FocusTimerService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val timeFormatted = formatTime(
-            if (_currentMode.value == FocusMode.STOPWATCH) _elapsedSeconds.value else _remainingSeconds.value
-        )
+        val timeFormatted = formatTime(_remainingSeconds.value)
 
         val title = when (_currentMode.value) {
             FocusMode.POMODORO -> "Pomodoro: ${_pomodoroPhase.value.name.replace("_", " ")} ($timeFormatted)"
-            FocusMode.STOPWATCH -> "Focus Stopwatch: $timeFormatted"
             FocusMode.TIMER -> "Focus Session: $timeFormatted remaining"
         }
 

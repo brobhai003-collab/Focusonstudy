@@ -5,7 +5,6 @@ import androidx.room.PrimaryKey
 
 enum class FocusMode {
     TIMER,
-    STOPWATCH,
     POMODORO
 }
 

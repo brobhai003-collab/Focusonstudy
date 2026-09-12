@@ -103,7 +103,7 @@ class MainActivity : ComponentActivity() {
         try {
             enableEdgeToEdge()
         } catch (e: Exception) {
-            android.util.Log.w("MainActivity", "enableEdgeToEdge warning: ${e.message}")
+            // Handled gracefully
         }
         setContent {
             MyApplicationTheme(darkTheme = true) {
