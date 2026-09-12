@@ -108,6 +108,17 @@ fun AppBlockerScreen(
     var showAddWebsiteDialog by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("ALL") } // ALL, BLOCKED, WHITELISTED
 
+    val blockedCount = remember(filteredApps) { filteredApps.count { it.isBlocked } }
+    val whitelistedCount = remember(filteredApps) { filteredApps.count { it.isWhitelisted } }
+
+    val displayedApps = remember(selectedFilter, filteredApps) {
+        when (selectedFilter) {
+            "BLOCKED" -> filteredApps.filter { it.isBlocked }
+            "WHITELISTED" -> filteredApps.filter { it.isWhitelisted }
+            else -> filteredApps
+        }
+    }
+
     val predefinedWebsites = remember {
         listOf(
             PredefinedWebsite(
@@ -187,6 +198,10 @@ fun AppBlockerScreen(
                 p.domains.any { d -> clean.equals(d, ignoreCase = true) || clean.contains(d) }
             }
         }
+    }
+
+    val enabledBlockedDomainsSet = remember(blockedWebsites) {
+        blockedWebsites.filter { it.isEnabled }.map { it.domain.lowercase().trim() }.toSet()
     }
 
     Column(
@@ -276,39 +291,47 @@ fun AppBlockerScreen(
                     ) {
                         Row(
                             modifier = Modifier
-                                .padding(16.dp)
+                                .padding(14.dp)
                                 .fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(46.dp)
+                                    .size(44.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(VioletNeon.copy(alpha = 0.2f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = VioletNeon)
                             }
-                            Spacer(modifier = Modifier.width(14.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
                                     Text(
                                         text = "Shorts & Reels Shield",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Surface(
                                         color = VioletNeon,
-                                        shape = RoundedCornerShape(6.dp)
+                                        shape = RoundedCornerShape(4.dp)
                                     ) {
                                         Text(
                                             text = "SMART",
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Black,
+                                            fontSize = 8.5.sp,
+                                            fontWeight = FontWeight.ExtraBold,
                                             color = Color.White,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp)
                                         )
                                     }
                                 }
@@ -319,6 +342,7 @@ fun AppBlockerScreen(
                                     color = Color(0xFFD6BAFF)
                                 )
                             }
+                            Spacer(modifier = Modifier.width(8.dp))
                             Switch(
                                 checked = isShortsBlockerEnabled,
                                 onCheckedChange = { if (!isModificationLocked) viewModel.toggleShortsBlocker(it) },
@@ -365,31 +389,37 @@ fun AppBlockerScreen(
 
                 // Filter Chips Row
                 item {
-                    LazyRow(
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(
-                            listOf(
-                                "ALL" to "All Apps",
-                                "BLOCKED" to "Blocked (${filteredApps.count { it.isBlocked }})",
-                                "WHITELISTED" to "Allowed (${filteredApps.count { it.isWhitelisted }})"
+                        FilterChip(
+                            selected = selectedFilter == "ALL",
+                            onClick = { selectedFilter = "ALL" },
+                            label = { Text("All Apps", style = MaterialTheme.typography.labelSmall) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CyanNeon.copy(alpha = 0.2f),
+                                selectedLabelColor = CyanNeon
                             )
-                        ) { (key, label) ->
-                            FilterChip(
-                                selected = selectedFilter == key,
-                                onClick = { selectedFilter = key },
-                                label = { Text(label, style = MaterialTheme.typography.labelSmall) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = if (key == "BLOCKED") CoralStrict.copy(alpha = 0.2f)
-                                    else if (key == "WHITELISTED") EmeraldSuccess.copy(alpha = 0.2f)
-                                    else CyanNeon.copy(alpha = 0.2f),
-                                    selectedLabelColor = if (key == "BLOCKED") CoralStrict
-                                    else if (key == "WHITELISTED") EmeraldSuccess
-                                    else CyanNeon
-                                )
+                        )
+                        FilterChip(
+                            selected = selectedFilter == "BLOCKED",
+                            onClick = { selectedFilter = "BLOCKED" },
+                            label = { Text("Blocked ($blockedCount)", style = MaterialTheme.typography.labelSmall) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CoralStrict.copy(alpha = 0.2f),
+                                selectedLabelColor = CoralStrict
                             )
-                        }
+                        )
+                        FilterChip(
+                            selected = selectedFilter == "WHITELISTED",
+                            onClick = { selectedFilter = "WHITELISTED" },
+                            label = { Text("Allowed ($whitelistedCount)", style = MaterialTheme.typography.labelSmall) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = EmeraldSuccess.copy(alpha = 0.2f),
+                                selectedLabelColor = EmeraldSuccess
+                            )
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -407,12 +437,6 @@ fun AppBlockerScreen(
                         }
                     }
                 } else {
-                    val displayedApps = when (selectedFilter) {
-                        "BLOCKED" -> filteredApps.filter { it.isBlocked }
-                        "WHITELISTED" -> filteredApps.filter { it.isWhitelisted }
-                        else -> filteredApps
-                    }
-
                     if (displayedApps.isEmpty()) {
                         item {
                             Box(
@@ -429,7 +453,11 @@ fun AppBlockerScreen(
                             }
                         }
                     } else {
-                        items(displayedApps, key = { it.packageName }) { app ->
+                        items(
+                            items = displayedApps,
+                            key = { it.packageName },
+                            contentType = { "app_item" }
+                        ) { app ->
                             AppItemRow(
                                 app = app,
                                 enabled = !isModificationLocked,
@@ -512,11 +540,13 @@ fun AppBlockerScreen(
                 }
 
                 // Predefined Websites List
-                items(predefinedWebsites, key = { it.id }) { item ->
+                items(
+                    items = predefinedWebsites,
+                    key = { it.id },
+                    contentType = { "predefined_website" }
+                ) { item ->
                     val isBlocked = item.domains.any { dom ->
-                        blockedWebsites.any { entity ->
-                            entity.isEnabled && entity.domain.equals(dom, ignoreCase = true)
-                        }
+                        dom.lowercase().trim() in enabledBlockedDomainsSet
                     }
 
                     Card(
@@ -554,23 +584,32 @@ fun AppBlockerScreen(
                             Spacer(modifier = Modifier.width(12.dp))
 
                             Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
                                     Text(
                                         text = item.name,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isBlocked) CoralStrict else MaterialTheme.colorScheme.onSurface
+                                        color = if (isBlocked) CoralStrict else MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Surface(
                                         color = if (isBlocked) CoralStrict.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface,
-                                        shape = RoundedCornerShape(6.dp)
+                                        shape = RoundedCornerShape(4.dp)
                                     ) {
                                         Text(
                                             text = item.tagText,
                                             style = MaterialTheme.typography.labelSmall,
+                                            fontSize = 8.5.sp,
+                                            maxLines = 1,
+                                            softWrap = false,
                                             color = if (isBlocked) CoralStrict else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.5.dp)
                                         )
                                     }
                                 }
@@ -662,7 +701,11 @@ fun AppBlockerScreen(
                         }
                     }
                 } else {
-                    items(customWebsites, key = { it.id }) { site ->
+                    items(
+                        items = customWebsites,
+                        key = { it.id },
+                        contentType = { "custom_website" }
+                    ) { site ->
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                             shape = RoundedCornerShape(12.dp),

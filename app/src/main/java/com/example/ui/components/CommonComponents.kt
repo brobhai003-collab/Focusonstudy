@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -283,21 +284,24 @@ fun AppItemRow(
     enabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val initialLetter = remember(app.appName) {
+        app.appName.firstOrNull()?.uppercase() ?: "A"
+    }
+
+    val containerColor = if (app.isBlocked) Color(0xFF2A1524)
+    else if (app.isWhitelisted) Color(0xFF102820)
+    else DarkSurfaceVariant
+
+    val borderColor = if (app.isBlocked) CoralStrict.copy(alpha = 0.4f)
+    else if (app.isWhitelisted) EmeraldSuccess.copy(alpha = 0.4f)
+    else DarkBorder
+
     Card(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (app.isBlocked) Color(0xFF2A1524)
-            else if (app.isWhitelisted) Color(0xFF102820)
-            else DarkSurfaceVariant
-        ),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (app.isBlocked) CoralStrict.copy(alpha = 0.4f)
-            else if (app.isWhitelisted) EmeraldSuccess.copy(alpha = 0.4f)
-            else DarkBorder
-        ),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        border = BorderStroke(1.dp, borderColor),
         shape = RoundedCornerShape(16.dp)
     ) {
         Row(
@@ -319,7 +323,7 @@ fun AppItemRow(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = app.appName.firstOrNull()?.uppercase() ?: "A",
+                    text = initialLetter,
                     fontWeight = FontWeight.Black,
                     fontSize = 19.sp,
                     color = if (app.isBlocked) CoralStrict else if (app.isWhitelisted) EmeraldSuccess else CyanNeon

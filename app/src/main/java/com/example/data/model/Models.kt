@@ -1,5 +1,6 @@
 package com.example.data.model
 
+import androidx.compose.runtime.Immutable
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -76,6 +77,7 @@ data class BlockedWebsiteEntity(
     val addedAt: Long = System.currentTimeMillis()
 )
 
+@Immutable
 data class InstalledApp(
     val packageName: String,
     val appName: String,
@@ -85,6 +87,7 @@ data class InstalledApp(
     val blockShortsOnly: Boolean = false
 )
 
+@Immutable
 data class ScreenTimeAppUsage(
     val packageName: String,
     val appName: String,

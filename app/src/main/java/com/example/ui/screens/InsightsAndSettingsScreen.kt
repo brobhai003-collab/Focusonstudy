@@ -247,7 +247,11 @@ fun InsightsAndSettingsScreen(
                         }
                     }
                 } else {
-                    items(dailyUsage, key = { it.packageName }) { appUsage ->
+                    items(
+                        items = dailyUsage,
+                        key = { it.packageName },
+                        contentType = { "app_usage" }
+                    ) { appUsage ->
                         val mins = appUsage.usageMillis / (60 * 1000)
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),

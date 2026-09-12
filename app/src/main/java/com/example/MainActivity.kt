@@ -131,12 +131,14 @@ fun FocusLockMainApp(
     var showProDialog by remember { mutableStateOf(false) }
     var showAuthDialog by remember { mutableStateOf(false) }
 
-    val navItems = listOf(
-        NavItem.Timer,
-        NavItem.Blocker,
-        NavItem.Schedules,
-        NavItem.Insights
-    )
+    val navItems = remember {
+        listOf(
+            NavItem.Timer,
+            NavItem.Blocker,
+            NavItem.Schedules,
+            NavItem.Insights
+        )
+    }
 
     val currentUser by focusViewModel.currentUser.collectAsStateWithLifecycle()
     val isProUser by focusViewModel.isProUser.collectAsStateWithLifecycle()
@@ -333,30 +335,24 @@ fun FocusLockMainApp(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            Crossfade(
-                targetState = selectedIndex,
-                animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing),
-                label = "screen_crossfade"
-            ) { targetIndex ->
-                when (targetIndex) {
-                    0 -> TimerScreen(
-                        viewModel = focusViewModel,
-                        onNavigateToPro = { showProDialog = true },
-                        onNavigateToBlocker = { selectedIndex = 1 }
-                    )
-                    1 -> AppBlockerScreen(
-                        viewModel = focusViewModel
-                    )
-                    2 -> SchedulesAndTaskScreen(
-                        viewModel = focusViewModel,
-                        onNavigateToPro = { showProDialog = true }
-                    )
-                    3 -> InsightsAndSettingsScreen(
-                        viewModel = focusViewModel,
-                        insightsViewModel = insightsViewModel,
-                        onNavigateToPro = { showProDialog = true }
-                    )
-                }
+            when (selectedIndex) {
+                0 -> TimerScreen(
+                    viewModel = focusViewModel,
+                    onNavigateToPro = { showProDialog = true },
+                    onNavigateToBlocker = { selectedIndex = 1 }
+                )
+                1 -> AppBlockerScreen(
+                    viewModel = focusViewModel
+                )
+                2 -> SchedulesAndTaskScreen(
+                    viewModel = focusViewModel,
+                    onNavigateToPro = { showProDialog = true }
+                )
+                3 -> InsightsAndSettingsScreen(
+                    viewModel = focusViewModel,
+                    insightsViewModel = insightsViewModel,
+                    onNavigateToPro = { showProDialog = true }
+                )
             }
         }
     }
